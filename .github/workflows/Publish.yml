@@ -97,7 +97,8 @@ jobs:
           }
 
           # 清掉调试符号：-p:DebugType=None 只管我们自己那几个工程，SkiaSharp / HarfBuzz 这类包照样把
-          # .pdb 拷进发布目录（实测 libSkiaSharp.pdb 一个就 80 MB，打包体积从 126 MB 掉到 46 MB）。
+          # .pdb 拷进发布目录（实测 libSkiaSharp.pdb 80 MB + libHarfBuzzSharp.pdb 20 MB，清掉后便携包
+          # 从 126.6 MB 掉到 101.4 MB；剩下的大头是内嵌 MiSans 字体的 Corkboard.dll）。
           $pdbs = @(Get-ChildItem $publishRoot -Recurse -File -Filter *.pdb)
           if ($pdbs.Count -gt 0) {
             $pdbSize = ($pdbs | Measure-Object -Property Length -Sum).Sum / 1MB
