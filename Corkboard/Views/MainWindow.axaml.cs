@@ -45,6 +45,19 @@ public partial class MainWindow : FAAppWindow
     /// <summary>尺寸落盘防抖：拖动 / 最大化过程中会连发多次 Bounds 变化，攒够闲下来再写一次。</summary>
     private static readonly TimeSpan WindowSizeSaveDelay = TimeSpan.FromMilliseconds(300);
 
+    /// <summary>
+    ///     设置窗口的最小宽度。XAML 里那个 800x600 是给作业板窗口定的：设置界面左边常驻一条导航栏、
+    ///     右边每张卡都是「说明 + 控件」两列并排，照 800 宽摆出来卡片会被挤成一条，所以设置窗口
+    ///     单独抬到跟出厂尺寸（<c>BasicSettingsConfig.SettingsWindowWidth</c>）齐平。
+    /// </summary>
+    private const double SettingsWindowMinWidth = 1000;
+
+    /// <inheritdoc cref="SettingsWindowMinWidth" />
+    private const double SettingsWindowMinHeight = 720;
+
+    /// <summary>下限按屏幕工作区夹放时，四周给标题栏 / 任务栏留的余量。</summary>
+    private const double SettingsWindowMinScreenMargin = 48;
+
     private readonly string _scope;
     private readonly bool _isMainScope;
     private double _lastNormalWidth = 1200;
@@ -101,6 +114,10 @@ public partial class MainWindow : FAAppWindow
             // 在分层半透明窗口上就是一整条黑边（用户反馈「窗口左下右都有黑边」）。
             // 窗口缩放改由壳自己接管（见 MainView 的拖边缩放），因此不需要原生边框。
             WindowDecorations = Avalonia.Controls.WindowDecorations.None;
+        }
+        else
+        {
+            ApplySettingsWindowMinimumSize();
         }
 
         Content = scope == AppConsts.SettingsWindowScope ? new SettingsView() : new MainView();
@@ -357,6 +374,35 @@ public partial class MainWindow : FAAppWindow
             return;
 
         SetStoredMaximizedSize(basic, width, height);
+    }
+
+    /// <summary>
+    ///     把设置窗口的最小尺寸抬到 <see cref="SettingsWindowMinWidth" /> / <see cref="SettingsWindowMinHeight" />，
+    ///     再按主屏工作区夹一下：屏幕本身比这个下限还小时（小笔记本 + 高缩放），死守下限会让窗口
+    ///     永远摆不下，宁可退回一个装得下的值。要在构造里、<see cref="RestoreSize" /> 之前调，
+    ///     否则恢复出来的小尺寸会被旧的 800x600 放进去。
+    /// </summary>
+    private void ApplySettingsWindowMinimumSize()
+    {
+        var minWidth = SettingsWindowMinWidth;
+        var minHeight = SettingsWindowMinHeight;
+
+        try
+        {
+            if (Screens.Primary is { } primary)
+            {
+                var scaling = primary.Scaling > 0d ? primary.Scaling : 1d;
+                minWidth = Math.Min(minWidth, primary.WorkingArea.Width / scaling - SettingsWindowMinScreenMargin);
+                minHeight = Math.Min(minHeight, primary.WorkingArea.Height / scaling - SettingsWindowMinScreenMargin);
+            }
+        }
+        catch (Exception)
+        {
+            // 窗口还没拿到平台实现时查不了屏幕，那就直接用常量，不能因为查屏幕失败打不开窗口。
+        }
+
+        MinWidth = Math.Max(320d, minWidth);
+        MinHeight = Math.Max(240d, minHeight);
     }
 
     private void ApplySize(double width, double height)

@@ -89,6 +89,99 @@ public class CloudStorageTests
         Assert.NotNull(CloudBackupFiles.FindBoard(files)!.UpdatedAt);
     }
 
+    /// <summary>同名备份有好几份（历史上重复上传留下的）时取最新的一份，旧件也要能被一次列全。</summary>
+    [Fact]
+    public void Files_WithDuplicatesUseTheNewest()
+    {
+        // 服务端实测按时间倒序返回，这里也照这个顺序：第一份最新。
+        const string json = """
+        {
+          "files": [
+            { "file_id": "cf_new_board", "filename": "corkboard-board.zip", "size": 3072, "updated_at": "2026-04-13T08:00:00.000Z" },
+            { "file_id": "cf_new_settings", "filename": "corkboard-settings.json", "size": 1024, "updated_at": "2026-04-13T08:00:01.000Z" },
+            { "file_id": "cf_old_settings", "filename": "corkboard-settings.json", "size": 512, "updated_at": "2026-04-12T08:00:00.000Z" },
+            { "file_id": "cf_old_board", "filename": "corkboard-board.zip", "size": 2048, "updated_at": "2026-04-12T08:00:00.000Z" }
+          ],
+          "total": 4,
+          "has_more": false
+        }
+        """;
+
+        var files = CloudFileInfo.ParseList(json);
+
+        Assert.Equal("cf_new_board", CloudBackupFiles.FindBoard(files)!.FileId);
+        Assert.Equal("cf_new_settings", CloudBackupFiles.FindSettings(files)!.FileId);
+        Assert.Equal(new[] { "cf_new_board", "cf_old_board" },
+            CloudBackupFiles.AllBoardArchives(files).Select(file => file.FileId));
+        Assert.Equal(new[] { "cf_new_settings", "cf_old_settings" },
+            CloudBackupFiles.AllSettingsFiles(files).Select(file => file.FileId));
+    }
+
+    /// <summary>
+    ///     二进制备份走 base64：云存储会把上传的字节按 UTF-8 解码（非法字节变 U+FFFD），
+    ///     所以压缩包必须先变成纯 ASCII 文本再传，取回来还能原样还原。
+    /// </summary>
+    [Fact]
+    public async Task Payload_Base64RoundTripsBinary()
+    {
+        var bytes = new byte[256];
+        for (var i = 0; i < bytes.Length; i++)
+            bytes[i] = (byte)i;
+
+        var encoded = CloudBackupPayload.Encode(bytes);
+
+        Assert.True(encoded.All(character => character < 128));
+        Assert.Equal(bytes, CloudBackupPayload.Decode(encoded));
+        Assert.Equal(bytes, CloudBackupPayload.Decode("  " + encoded + Environment.NewLine));
+        Assert.Equal(bytes, CloudBackupPayload.Decode("\uFEFF" + encoded));
+
+        var directory = Path.Combine(Path.GetTempPath(), "corkboard-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var source = Path.Combine(directory, "source.bin");
+            var encodedPath = Path.Combine(directory, "encoded.txt");
+            var decodedPath = Path.Combine(directory, "decoded.bin");
+            var token = TestContext.Current.CancellationToken;
+            await File.WriteAllBytesAsync(source, bytes, token);
+
+            await CloudBackupPayload.WriteEncodedAsync(source, encodedPath, token);
+            await CloudBackupPayload.WriteDecodedAsync(encodedPath, decodedPath, token);
+
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(decodedPath, token));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>作业板备份的云端名带 base64 后缀，挑件时也认它。</summary>
+    [Fact]
+    public void Files_RecognizesBase64BoardArchive()
+    {
+        Assert.Equal("corkboard-board.zip.b64", CloudBackupFiles.BoardCloudName);
+        Assert.True(CloudBackupFiles.IsBoardArchive(CloudBackupFiles.BoardArchiveName));
+        Assert.True(CloudBackupFiles.IsBoardArchive(CloudBackupFiles.BoardCloudName));
+        Assert.False(CloudBackupFiles.IsBase64BoardArchive(CloudBackupFiles.BoardArchiveName));
+        Assert.True(CloudBackupFiles.IsBase64BoardArchive(CloudBackupFiles.BoardCloudName));
+        Assert.False(CloudBackupFiles.IsSettingsFile(CloudBackupFiles.BoardCloudName));
+
+        var files = CloudFileInfo.ParseList("""
+        {
+          "files": [
+            { "file_id": "cf_b64", "filename": "corkboard-board.zip.b64", "size": 4096, "updated_at": "2026-04-13T08:00:00.000Z" },
+            { "file_id": "cf_old", "filename": "corkboard-board.zip", "size": 2048, "updated_at": "2026-04-12T08:00:00.000Z" }
+          ],
+          "total": 2,
+          "has_more": false
+        }
+        """);
+
+        Assert.Equal("cf_b64", CloudBackupFiles.FindBoard(files)!.FileId);
+        Assert.Equal(2, CloudBackupFiles.AllBoardArchives(files).Count());
+    }
+
     /// <summary>错误体解析；正常返回体不会被当成错误。</summary>
     [Fact]
     public void Error_ParsesOnlyErrorBodies()
@@ -131,6 +224,30 @@ public class CloudStorageTests
         Assert.True(CloudSyncPolicy.NeedsUpload(lastSync, null));
         Assert.True(CloudSyncPolicy.NeedsUpload(lastSync.AddMinutes(1), lastSync));
         Assert.False(CloudSyncPolicy.NeedsUpload(lastSync, lastSync));
+    }
+
+    /// <summary>自动上传的防抖截止时间：只在更早的时候才提前，不能被后到的长等待推后。</summary>
+    [Fact]
+    public void Policy_NextDeadlineKeepsTheEarlierOne()
+    {
+        var now = new DateTimeOffset(2026, 4, 11, 8, 0, 0, TimeSpan.Zero);
+
+        // 没排过任何等待：按这次的延迟算。
+        var boardDeadline = CloudSyncPolicy.NextDeadline(null, now, TimeSpan.FromSeconds(5));
+        Assert.Equal(now.AddSeconds(5), boardDeadline);
+
+        // 作业板改动后紧跟一次设置落盘（45 秒）：还得按作业板那 5 秒算。
+        Assert.Equal(boardDeadline, CloudSyncPolicy.NextDeadline(boardDeadline, now, TimeSpan.FromSeconds(45)));
+        Assert.Equal(boardDeadline, CloudSyncPolicy.NextDeadline(boardDeadline, now.AddSeconds(1), TimeSpan.FromSeconds(45)));
+
+        // 反过来：先排着 45 秒、这时作业板改了，要提前到 5 秒。
+        var settingsDeadline = CloudSyncPolicy.NextDeadline(null, now, TimeSpan.FromSeconds(45));
+        Assert.Equal(now.AddSeconds(5), CloudSyncPolicy.NextDeadline(settingsDeadline, now, TimeSpan.FromSeconds(5)));
+
+        // 已经过点的截止时间照样保留：那次上传本来就要发生了，再往后推只会白等，
+        // 而且上传时看的是当时的改动，新改动照样会一起传上去。
+        var overdue = now.AddSeconds(-1);
+        Assert.Equal(overdue, CloudSyncPolicy.NextDeadline(overdue, now, TimeSpan.FromSeconds(5)));
     }
 
     /// <summary>备份包能原样打回来，清单不落到数据目录里。</summary>

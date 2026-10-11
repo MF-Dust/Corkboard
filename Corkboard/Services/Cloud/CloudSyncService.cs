@@ -36,8 +36,14 @@ namespace Corkboard.Services.Cloud;
 /// </remarks>
 public sealed class CloudSyncService : ICloudSyncService, IDisposable
 {
-    /// <summary>改动之后等这么久再上传：作业板是边写边存的，防抖免得每敲一个字就传一次。</summary>
-    private static readonly TimeSpan AutoUploadDelay = TimeSpan.FromSeconds(45);
+    /// <summary>
+    ///     作业板改动后等这么久再上传。布置 / 修改 / 删除作业都是「一次操作一次落盘」，
+    ///     等几秒没人再动就传，用户不用自己去点「立即备份」。
+    /// </summary>
+    private static readonly TimeSpan BoardAutoUploadDelay = TimeSpan.FromSeconds(5);
+
+    /// <summary>设置改动后等这么久再上传：设置常常一连串地改（拖滑杆、连点开关），攒久一点再传。</summary>
+    private static readonly TimeSpan SettingsAutoUploadDelay = TimeSpan.FromSeconds(45);
 
     private const string ProductName = "Corkboard";
     private const string BoardDirectoryName = "board";
@@ -60,6 +66,12 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     private string? _lastError;
 
     private DispatcherTimer? _autoUpload;
+
+    /// <summary>
+    ///     已经排着的那次自动上传的截止时间。两次改动挨在一起时（作业落盘往往紧跟一次配置落盘），
+    ///     按更早的那个算：否则先排的 5 秒会被后到的 45 秒顶掉，作业要等 45 秒才传上去。
+    /// </summary>
+    private DateTimeOffset? _autoUploadDeadline;
     private bool _synchronizing;
     private bool _autoPullChecked;
     private bool _initialized;
@@ -416,8 +428,15 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
                     DateTimeOffset.Now);
                 CloudBackupArchive.Create(BoardDirectory, archivePath, manifest);
 
-                var fileId = await _client.UploadAsync(archivePath, CloudBackupFiles.BoardArchiveName, cancellationToken);
-                await DeleteReplacedAsync(CloudBackupFiles.FindBoard(existing), fileId, cancellationToken);
+                // 压缩包必须先变成 base64 文本：云存储会把上传的字节按 UTF-8 解码一遍，二进制传上去就坏了。
+                var uploadPath = Path.Combine(work, CloudBackupFiles.BoardCloudName);
+                await CloudBackupPayload.WriteEncodedAsync(archivePath, uploadPath, cancellationToken)
+                    .ConfigureAwait(false);
+
+                var fileId = await _client.UploadAsync(uploadPath, CloudBackupFiles.BoardCloudName, cancellationToken)
+                    .ConfigureAwait(false);
+                await DeleteReplacedAsync(CloudBackupFiles.AllBoardArchives(existing), fileId, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             if (scope.HasFlag(CloudSyncScope.Settings))
@@ -430,7 +449,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
                     await File.WriteAllTextAsync(backupPath, stripped, cancellationToken);
 
                     var fileId = await _client.UploadAsync(backupPath, CloudBackupFiles.SettingsFileName, cancellationToken);
-                    await DeleteReplacedAsync(CloudBackupFiles.FindSettings(existing), fileId, cancellationToken);
+                    await DeleteReplacedAsync(CloudBackupFiles.AllSettingsFiles(existing), fileId, cancellationToken);
                     settingsUploaded = true;
                 }
             }
@@ -461,17 +480,39 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         {
             if (wantBoard)
             {
+                // 用自己拼的文件名落盘：云端的 filename 是服务端数据，不能直接拿去拼路径。
+                var isBase64 = CloudBackupFiles.IsBase64BoardArchive(boardFile!.FileName);
+                var downloadPath = Path.Combine(work, "board-download" + (isBase64 ? CloudBackupFiles.Base64Suffix : ".zip"));
+                await _client.DownloadAsync(boardFile.FileId, downloadPath, cancellationToken).ConfigureAwait(false);
+
                 var archivePath = Path.Combine(work, CloudBackupFiles.BoardArchiveName);
-                await _client.DownloadAsync(boardFile!.FileId, archivePath, cancellationToken);
+                try
+                {
+                    if (isBase64)
+                    {
+                        await CloudBackupPayload.WriteDecodedAsync(downloadPath, archivePath, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        // 兼容没加 base64 之前传上去的老件：它多半已经被云端按 UTF-8 弄坏了。
+                        File.Move(downloadPath, archivePath, true);
+                    }
 
-                // 先解到临时目录：包是坏的、或者里面没有作业板数据，都还没碰到现有数据。
-                var staging = Path.Combine(work, "board");
-                var count = CloudBackupArchive.Extract(archivePath, staging);
-                if (count == 0 && DirectoryHasFiles(BoardDirectory))
-                    throw new CloudStorageException("invalid_backup", "这份云备份里没有作业板数据，已停止恢复");
+                    // 先解到临时目录：包是坏的、或者里面没有作业板数据，都还没碰到现有数据。
+                    var staging = Path.Combine(work, "board");
+                    var count = CloudBackupArchive.Extract(archivePath, staging);
+                    if (count == 0 && DirectoryHasFiles(BoardDirectory))
+                        throw new CloudStorageException("invalid_backup", "这份云备份里没有作业板数据，已停止恢复");
 
-                ReplaceDirectory(staging, BoardDirectory);
-                _board.Reload();
+                    ReplaceDirectory(staging, BoardDirectory);
+                    _board.Reload();
+                }
+                catch (Exception exception) when (exception is InvalidDataException or FormatException or IOException)
+                {
+                    _logger?.LogWarning(exception, "云端作业板备份解析失败。");
+                    throw new CloudStorageException("invalid_backup", "云端的作业板备份读不出来，可能已经损坏");
+                }
             }
 
             if (wantSettings)
@@ -536,20 +577,29 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         NotifyState();
     }
 
-    private async Task DeleteReplacedAsync(CloudFileInfo? previous, string? newFileId, CancellationToken cancellationToken)
+    /// <summary>
+    ///     删掉被这次上传顶掉的云端旧件。同名可能有好几份（历史上重复上传留下的），一次全清，
+    ///     否则空间白占、恢复时也可能挑到旧的那份。
+    /// </summary>
+    private async Task DeleteReplacedAsync(IEnumerable<CloudFileInfo> previous, string? newFileId,
+        CancellationToken cancellationToken)
     {
-        if (previous is null || newFileId is null)
-            return;
-        if (string.Equals(previous.FileId, newFileId, StringComparison.Ordinal))
+        if (newFileId is null)
             return;
 
-        try
+        foreach (var file in previous)
         {
-            await _client.DeleteAsync(previous.FileId, cancellationToken);
-        }
-        catch (CloudStorageException exception)
-        {
-            _logger?.LogDebug(exception, "云端旧备份没删掉，不影响这次备份。");
+            if (string.Equals(file.FileId, newFileId, StringComparison.Ordinal))
+                continue;
+
+            try
+            {
+                await _client.DeleteAsync(file.FileId, cancellationToken);
+            }
+            catch (CloudStorageException exception)
+            {
+                _logger?.LogDebug(exception, "云端旧备份没删掉，不影响这次备份。");
+            }
         }
     }
 
@@ -564,7 +614,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             return;
         }
 
-        ScheduleAutoUpload();
+        ScheduleAutoUpload(SettingsAutoUploadDelay);
 
         // 刚打开同步开关：先看一眼云端有没有更新，本机没改动就自动拿下来。
         if (_initialized && !_autoPullChecked && _auth.IsSignedIn)
@@ -577,7 +627,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             return;
 
         if (Config.Enabled)
-            ScheduleAutoUpload();
+            ScheduleAutoUpload(BoardAutoUploadDelay);
     }
 
     private void OnAuthStateChanged(object? sender, EventArgs e)
@@ -600,7 +650,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             RunOnUiThread(() => _ = SafeCheckAsync(true, CancellationToken.None));
     }
 
-    private void ScheduleAutoUpload()
+    private void ScheduleAutoUpload(TimeSpan delay)
     {
         if (_disposed)
             return;
@@ -610,19 +660,39 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             if (_disposed || !Config.Enabled)
                 return;
 
-            _autoUpload ??= new DispatcherTimer { Interval = AutoUploadDelay };
+            var now = DateTimeOffset.UtcNow;
+            var deadline = CloudSyncPolicy.NextDeadline(_autoUploadDeadline, now, delay);
+
+            // 已经排着一个更早的截止时间就不动它：作业板那 5 秒不能被设置那边的 45 秒顶掉。
+            if (_autoUploadDeadline == deadline)
+                return;
+
+            // 截止时间可能刚好在这一次改动之前（前一次上传已经到期、计时器还没跑到），
+            // 那就立刻再来一次；负的间隔不能交给 DispatcherTimer。
+            var interval = deadline - now;
+            if (interval < TimeSpan.FromMilliseconds(1))
+                interval = TimeSpan.FromMilliseconds(1);
+
+            _autoUpload ??= new DispatcherTimer();
             _autoUpload.Stop();
             _autoUpload.Tick -= OnAutoUploadTick;
             _autoUpload.Tick += OnAutoUploadTick;
+            _autoUpload.Interval = interval;
+            _autoUploadDeadline = deadline;
             _autoUpload.Start();
         });
     }
 
-    private void StopAutoUpload() => RunOnUiThread(() => _autoUpload?.Stop());
+    private void StopAutoUpload() => RunOnUiThread(() =>
+    {
+        _autoUpload?.Stop();
+        _autoUploadDeadline = null;
+    });
 
     private void OnAutoUploadTick(object? sender, EventArgs e)
     {
         _autoUpload?.Stop();
+        _autoUploadDeadline = null;
         _ = SafeAutoBackupAsync();
     }
 

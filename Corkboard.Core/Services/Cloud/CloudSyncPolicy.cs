@@ -39,4 +39,23 @@ public static class CloudSyncPolicy
 
         return lastSyncedAt is null || localModifiedAt.Value > lastSyncedAt.Value + Tolerance;
     }
+
+    /// <summary>
+    ///     防抖自动上传的截止时间：已经排着一个更早的截止时间就保持不动，只把后来的提前。
+    ///     <para>
+    ///         作业板改动等得短（一次编辑就落盘，等几秒没人再动就传）、设置改动等得长，
+    ///         而作业落盘常常紧跟着一次配置落盘；谁后到就用谁的话，先排的短等待会被长等待顶掉，
+    ///         用户改完作业就要多等几十秒。
+    ///     </para>
+    ///     <para>
+    ///         过点了的截止时间也照样保留（返回它本身）：那次上传本来就要发生了，
+    ///         真上传时看的是当时的改动，新改动会一起传上去，再往后推只会让用户白等。
+    ///     </para>
+    /// </summary>
+    public static DateTimeOffset NextDeadline(DateTimeOffset? pendingDeadline, DateTimeOffset now, TimeSpan delay)
+    {
+        var candidate = now + delay;
+
+        return pendingDeadline is { } pending && pending <= candidate ? pending : candidate;
+    }
 }
