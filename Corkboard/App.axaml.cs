@@ -39,6 +39,7 @@ using Corkboard.ViewModels.SettingsPages;
 using Corkboard.Views;
 using Corkboard.Views.MainPages;
 using Corkboard.Views.SettingsPages.About;
+using Corkboard.Views.SettingsPages.Account;
 using Corkboard.Views.SettingsPages.Board;
 using Corkboard.Views.SettingsPages.General;
 using Corkboard.Views.SettingsPages.Personalized;
@@ -177,6 +178,7 @@ public partial class App : Application
         services.AddTransient<BoardSettingsPageViewModel>();
         services.AddTransient<AppearanceSettingsPageViewModel>();
         services.AddTransient<AboutSettingsPageViewModel>();
+        services.AddTransient<AccountSettingsPageViewModel>();
 
         // 主页面标题的默认文案；用户可以在作业板设置里改成别的名字。
         services.AddMainPage<BoardPage>(CR.Board_Title);
@@ -187,6 +189,9 @@ public partial class App : Application
         services.AddSettingsPage<BasicSettingsPage>(CR.Settings_Basic_Title);
         services.AddSettingsPage<BoardSettingsPage>(CR.Settings_Board_Title);
         services.AddSettingsPage<AppearanceSettingsPage>(CR.Settings_Appearance_Title);
+        services.AddSettingsPage<AccountSettingsPage>(CR.Settings_Account_Title);
+        // 「关于」沉在导航栏底部：位置由 AboutSettingsPage 上的 PageInfo(Location = Bottom) 决定，
+        // 和这里注册在第几位无关（注册顺序只决定上半区那几项的先后）。
         services.AddSettingsPage<AboutSettingsPage>(CR.Settings_About_Title);
 
         IAppHost.Host = builder.Build();

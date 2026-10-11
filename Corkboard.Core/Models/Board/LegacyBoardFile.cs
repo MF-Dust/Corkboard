@@ -10,12 +10,14 @@ namespace Corkboard.Core.Models.Board;
 /// <summary>
 ///     旧版作业数据的形状：<c>data/config/board.json</c> 里作业、类型、科目挤在一起。
 ///     只在一次性搬迁时读它，读不到就返回 <c>null</c>（不重写、不抛异常）。
+///     <para>
+///         里面的 <c>types</c> 与作业上的 <c>type_id</c>/<c>values</c> 都是已删除的旧功能留下的，
+///     反序列化时静默忽略即可。
+///     </para>
 /// </summary>
 public sealed class LegacyBoardFile
 {
     public List<BoardNote> Notes { get; set; } = [];
-
-    public List<BoardTypeDef> Types { get; set; } = [];
 
     public List<string> Subjects { get; set; } = [];
 

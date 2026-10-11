@@ -10,6 +10,15 @@
              x:DataType="vm:AppearanceSettingsPageViewModel">
     <ScrollViewer>
         <StackPanel Classes="page-container">
+            <!-- 页标题画在 page-container 里：它才和设置卡同宽、同左边缘，并随卡片一起滚动。 -->
+            <TextBlock Margin="0 4 0 0"
+                       FontWeight="Normal"
+                       Text="{x:Static core:Resources.Settings_Appearance_Title}"
+                       Theme="{StaticResource TitleTextBlockStyle}" />
+
+            <TextBlock Classes="section-title"
+                       Text="{x:Static core:Resources.Settings_Section_Theme}" />
+
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Appearance_Theme}"
                                    Description="{x:Static core:Resources.Settings_Appearance_ThemeDescription}">
                 <fa:FASettingsExpander.Footer>
@@ -51,6 +60,9 @@
                     </StackPanel>
                 </fa:FASettingsExpander.Footer>
             </fa:FASettingsExpander>
+
+            <TextBlock Classes="section-title"
+                       Text="{x:Static core:Resources.Settings_Section_Font}" />
 
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Appearance_FontFamily}"
                                    Description="{x:Static core:Resources.Settings_Appearance_FontFamilyDescription}">

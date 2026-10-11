@@ -3,7 +3,10 @@ namespace Corkboard.Core.Models.Board;
 /// <summary>
 ///     区块排布里「单个区块多大」的约束：设置页的输入框、面板的宽度上下限、读盘时的兜底，
 ///     三处共用一份，免得三边各写一组数字。
-///     <para>用户能改的是最小宽度（决定一行排几块），宽度上限由它推出来。</para>
+///     <para>
+///         用户能改的是基准宽度（决定一行排几块）与「是否自适应」：自适应开着时宽度上限按倍数
+///         推出来，关掉时上限等于基准宽度（单块宽度于是固定）。
+///     </para>
 /// </summary>
 public static class BoardBlockStyle
 {
@@ -31,8 +34,14 @@ public static class BoardBlockStyle
     }
 
     /// <summary>由最小宽度推面板的宽度上限（默认 300 时上限是 420，和旧行为一致）。</summary>
-    public static double ResolveMaxItemWidth(double minItemWidth)
+    /// <param name="minItemWidth">设置里填的基准宽度。</param>
+    /// <param name="adaptive">
+    ///     是否自适应：开着时单块能在基准宽度与上限之间随窗口伸缩；关掉时上限就是基准宽度本身，
+    ///     单块宽度固定、一行放不下才换行。
+    /// </param>
+    public static double ResolveMaxItemWidth(double minItemWidth, bool adaptive = true)
     {
-        return ClampMinItemWidth(minItemWidth) * MaxItemWidthRatio;
+        var min = ClampMinItemWidth(minItemWidth);
+        return adaptive ? min * MaxItemWidthRatio : min;
     }
 }

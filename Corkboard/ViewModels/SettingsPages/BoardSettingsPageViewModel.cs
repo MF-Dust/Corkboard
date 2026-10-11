@@ -22,7 +22,8 @@ namespace Corkboard.ViewModels.SettingsPages;
 ///     <para>
 ///         类型与科目存在 <c>board.json</c>（业务数据），由 <c>BoardService</c> 显式落盘，
 ///         所以这里没有配置管道那种「集合元素不会被自动保存」的问题：改完喊一声
-///         <see cref="SaveAll" /> 就行。所有输入框都用 <c>LostFocus</c> 触发它。
+///         <see cref="SaveAll" /> 就行。名称与科目这两个输入框除了失焦，还会在停手 400ms 后
+///         自动提交（用户不用按回车），其余输入框靠 <c>LostFocus</c>。
 ///     </para>
 /// </summary>
 public partial class BoardSettingsPageViewModel : ViewModelBase
@@ -43,6 +44,8 @@ public partial class BoardSettingsPageViewModel : ViewModelBase
         BoardNameDraft = Board.BoardName;
         SubjectsDraft = string.Join("，", _boardService.Subjects);
         _defaultFontSizeDraft = (decimal)BoardContentStyle.ClampFontSize(Board.DefaultContentFontSize);
+        _subjectFontSizeDraft = (decimal)BoardTextStyle.ClampSubjectFontSize(Board.SubjectFontSize);
+        _noteMetaFontSizeDraft = (decimal)BoardTextStyle.ClampMetaFontSize(Board.NoteMetaFontSize);
         _blockMinWidthDraft = (decimal)BoardBlockStyle.ClampMinItemWidth(Board.BlockMinWidth);
         _cleanupTimeDraft = TimeDraft(Board.CleanupHour, Board.CleanupMinute);
 
@@ -57,9 +60,6 @@ public partial class BoardSettingsPageViewModel : ViewModelBase
     }
 
     public BoardSettingsConfig Board => Config.BoardSettings;
-
-    /// <summary>作业类型。设置页直接增删改，改完调 <see cref="SaveAll" />。</summary>
-    public ObservableCollection<BoardTypeDef> Types => _boardService.Types;
 
     /// <summary>
     ///     排布（展示设置）下拉项。主页面顶部不放切换器，排布只在这里选；
@@ -92,11 +92,26 @@ public partial class BoardSettingsPageViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty] private decimal? _blockMinWidthDraft;
 
+    /// <summary>科目标题字号的输入草稿。理由同上：NumericUpDown 一路动一路写盘。</summary>
+    [ObservableProperty] private decimal? _subjectFontSizeDraft;
+
+    /// <summary>作业条小字（类型与字段值、截止日期）字号的输入草稿。</summary>
+    [ObservableProperty] private decimal? _noteMetaFontSizeDraft;
+
     /// <summary>取色器停手多久才把颜色写进配置。拖光谱时每帧都在变，写盘要攒一攒。</summary>
     private static readonly TimeSpan ColorCommitDelay = TimeSpan.FromMilliseconds(400);
 
+    /// <summary>
+    ///     名称与科目这两个输入框停手多久才提交。它们同样「一敲就变」，
+    ///     而提交就意味着落一次盘，所以也要攒一攒——用户因此不用按回车。
+    /// </summary>
+    private static readonly TimeSpan TextCommitDelay = TimeSpan.FromMilliseconds(400);
+
     private Color? _defaultColorDraft;
     private DispatcherTimer? _defaultColorCommitTimer;
+
+    private DispatcherTimer? _boardNameCommitTimer;
+    private DispatcherTimer? _subjectsCommitTimer;
 
     /// <summary>
     ///     默认颜色的取色器草稿。理由同字号：每帧都写配置会把 <c>settings.json</c> 写爆。
@@ -208,6 +223,35 @@ public partial class BoardSettingsPageViewModel : ViewModelBase
     }
 
     /// <summary>
+    ///     提交两个字号草稿（科目标题、作业条小字）。手输越界值时夹回合法区间，
+    ///     并把夹过的值同步回界面，免得显示的和落盘的不是一个数。
+    /// </summary>
+    public void CommitFontSizes()
+    {
+        var subject = SubjectFontSizeDraft is { } subjectDraft
+            ? BoardTextStyle.ClampSubjectFontSize((double)subjectDraft)
+            : BoardTextStyle.ClampSubjectFontSize(Board.SubjectFontSize);
+
+        if (Math.Abs(Board.SubjectFontSize - subject) > double.Epsilon)
+            Board.SubjectFontSize = subject;
+
+        var subjectNormalized = (decimal)subject;
+        if (SubjectFontSizeDraft != subjectNormalized)
+            SubjectFontSizeDraft = subjectNormalized;
+
+        var meta = NoteMetaFontSizeDraft is { } metaDraft
+            ? BoardTextStyle.ClampMetaFontSize((double)metaDraft)
+            : BoardTextStyle.ClampMetaFontSize(Board.NoteMetaFontSize);
+
+        if (Math.Abs(Board.NoteMetaFontSize - meta) > double.Epsilon)
+            Board.NoteMetaFontSize = meta;
+
+        var metaNormalized = (decimal)meta;
+        if (NoteMetaFontSizeDraft != metaNormalized)
+            NoteMetaFontSizeDraft = metaNormalized;
+    }
+
+    /// <summary>
     ///     提交区块最小宽度。手输越界值时夹回合法区间，并把夹过的值同步回界面，
     ///     免得显示的和落盘的不是一个数。
     /// </summary>
@@ -240,51 +284,20 @@ public partial class BoardSettingsPageViewModel : ViewModelBase
         }
     }
 
-    /// <summary>加一个空类型。刚建出来没有字段，用户再往里加——「卷子」这种本来就不需要字段。</summary>
-    [RelayCommand]
-    private void AddType()
-    {
-        _boardService.Types.Add(new BoardTypeDef());
-        _boardService.Save();
-    }
-
-    public void RemoveType(BoardTypeDef type)
-    {
-        if (!_boardService.Types.Remove(type))
-            return;
-
-        _boardService.Save();
-    }
-
-    public void AddField(BoardTypeDef type)
-    {
-        type.Fields.Add(new BoardTypeField { Kind = BoardFieldKind.Text });
-        _boardService.Save();
-    }
-
-    /// <summary>字段对象在类型之间是唯一的，所以按引用找到属主再删，页面不用额外传类型。</summary>
-    public void RemoveField(BoardTypeField field)
-    {
-        foreach (var type in _boardService.Types)
-        {
-            if (!type.Fields.Remove(field))
-                continue;
-
-            _boardService.Save();
-            return;
-        }
-    }
-
-    /// <summary>设置页所有编辑的收口：草稿提交 + 类型/科目落盘。输入框失焦与离开页面时都会调。</summary>
+    /// <summary>设置页所有编辑的收口：草稿提交 + 科目落盘。输入框失焦与离开页面时都会调。</summary>
     public void SaveAll()
     {
         CommitBoardName();
         CommitSubjects();
         CommitContentDefaults();
+        CommitFontSizes();
         CommitBlockMinWidth();
         CommitCleanup();
         FlushPaletteCommit();
         _boardService.Save();
+
+        // 草稿上面都提交过了，压在防抖里的计时就别再触发一次（重复提交会白写一遍盘）。
+        CancelTextCommits();
     }
 
     /// <summary>把名称草稿写回配置。配置自己会落盘。</summary>
@@ -295,8 +308,11 @@ public partial class BoardSettingsPageViewModel : ViewModelBase
             Board.BoardName = name;
     }
 
-    /// <summary>把科目草稿（逗号分隔，中英文逗号都认）写回领域服务。</summary>
-    public void CommitSubjects()
+    /// <summary>
+    ///     把科目草稿（逗号分隔，中英文逗号都认）写回领域服务。
+    ///     返回是否真的变了：科目存在 <c>board.json</c> 里，没变就不用白落一次盘。
+    /// </summary>
+    public bool CommitSubjects()
     {
         var parsed = SubjectsDraft
             .Split([',', '，', ';', '；'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -304,11 +320,67 @@ public partial class BoardSettingsPageViewModel : ViewModelBase
             .ToList();
 
         if (parsed.SequenceEqual(_boardService.Subjects))
-            return;
+            return false;
 
         _boardService.Subjects.Clear();
         foreach (var subject in parsed)
             _boardService.Subjects.Add(subject);
+
+        return true;
+    }
+
+    /// <summary>
+    ///     名称草稿动一下就在 400ms 后提交：用户不用按回车，改完停手就生效。
+    ///     提交会落盘，所以不能每敲一个字符写一次 <c>settings.json</c>。
+    /// </summary>
+    partial void OnBoardNameDraftChanged(string value)
+    {
+        // 构造期会把草稿初始化成配置里的名字，别为此空排一次提交。
+        if (value.Trim() == Board.BoardName)
+            return;
+
+        _boardNameCommitTimer = ScheduleTextCommit(_boardNameCommitTimer, CommitBoardName);
+    }
+
+    /// <summary>科目草稿同理，只是提交完要显式落盘（科目在 <c>board.json</c> 里）。</summary>
+    partial void OnSubjectsDraftChanged(string value)
+    {
+        _subjectsCommitTimer = ScheduleTextCommit(_subjectsCommitTimer, CommitSubjectsAndSave);
+    }
+
+    /// <summary>
+    ///     排一次「停手后提交」：先把上一次的计时顶掉，再起一个新的。
+    ///     新计时器由调用点存回字段——lambda 里不能捕获 <c>ref</c> 参数，所以这里不用引用传递。
+    /// </summary>
+    private DispatcherTimer ScheduleTextCommit(DispatcherTimer? pending, Action commit)
+    {
+        pending?.Stop();
+
+        var timer = new DispatcherTimer { Interval = TextCommitDelay };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            commit();
+        };
+        timer.Start();
+
+        return timer;
+    }
+
+    /// <summary>科目变了才落盘。</summary>
+    private void CommitSubjectsAndSave()
+    {
+        if (CommitSubjects())
+            _boardService.Save();
+    }
+
+    /// <summary>停掉还压在防抖里的名称 / 科目提交（<see cref="SaveAll" /> 已经把草稿提交过了）。</summary>
+    private void CancelTextCommits()
+    {
+        _boardNameCommitTimer?.Stop();
+        _boardNameCommitTimer = null;
+        _subjectsCommitTimer?.Stop();
+        _subjectsCommitTimer = null;
     }
 
     #region 工具浮窗色板

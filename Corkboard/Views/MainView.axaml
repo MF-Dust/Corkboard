@@ -131,29 +131,32 @@
                             </Button.Flyout>
                         </Button>
 
+                        <!-- 要的是图标不是文字：与右下角那颗浮标同款加号，含义交给 ToolTip。 -->
                         <Button VerticalAlignment="Center"
-                                Content="{x:Static core:Resources.Board_AddNote}"
+                                ToolTip.Tip="{x:Static core:Resources.Board_AddNote}"
                                 IsVisible="{Binding !Replay.IsActive}"
                                 WindowDecorationProperties.ElementRole="User"
-                                Click="AddAssignmentButton_OnClick" />
+                                Click="AddAssignmentButton_OnClick">
+                            <TextBlock Text="{x:Static icons:FluentIcons.AddFilled}"
+                                       FontFamily="{DynamicResource FluentSystemIconsResizeable}"
+                                       VerticalAlignment="Center" />
+                        </Button>
 
                         <!--
-                            回放入口：要点两次才真的进去（第一次变成「再点一次进入回放」，
-                            超时自动退回，见 BoardReplayService.Enter）。
+                            回放入口：要点两次才真的进去（第一次按钮变成高亮「已就绪」，同时提示语换成
+                            「再点一次进入回放」，超时自动退回，见 BoardReplayService.Enter）。
                             一条作业都没有时整颗按钮不显示（CanEnterReplay）。
+                            与这一排其它按钮一样只给图标，所以「已就绪」靠 accent 高亮 + ToolTip 表示。
                         -->
                         <Button VerticalAlignment="Center"
+                                Classes.accent="{Binding Replay.IsArmed}"
                                 IsVisible="{Binding Replay.CanEnterReplay}"
                                 ToolTip.Tip="{Binding Replay.EnterButtonText}"
                                 WindowDecorationProperties.ElementRole="User"
                                 Click="ReplayEnterButton_OnClick">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="{x:Static icons:FluentIcons.HistoryFilled}"
-                                           FontFamily="{DynamicResource FluentSystemIconsResizeable}"
-                                           VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Replay.EnterButtonText}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
+                            <TextBlock Text="{x:Static icons:FluentIcons.HistoryFilled}"
+                                       FontFamily="{DynamicResource FluentSystemIconsResizeable}"
+                                       VerticalAlignment="Center" />
                         </Button>
 
                         <!-- 回放控制条：只留日期下拉与退出，进来就能挑任意一天往回看。 -->
@@ -235,8 +238,8 @@
             主窗口右下角的「布置作业」快捷按钮（开关在设置 → 基础设置）。
             它浮在页面内容之上、按窗口角定位，不跟着页面滚动；放在弹层遮罩之前，
             弹层打开时会被遮罩盖住，不会浮在表单上面。
-            关掉点击穿透时整窗都不收鼠标，这颗按钮照样点不动，所以那种状态下一起隐藏
-            （与标题栏那一排同一个理由）。
+            开着点击穿透时整窗都不收鼠标，这颗按钮照样点不动，所以那种状态下一起隐藏
+            （与标题栏那一排同一个理由，见 MainViewModel.ShowCornerAssignButton）。
             回放期间也不显示：那时看的是历史快照，不接受新建。
         -->
         <Panel HorizontalAlignment="Right"
@@ -247,7 +250,7 @@
                     Padding="0"
                     CornerRadius="16"
                     Classes="accent"
-                    IsVisible="{Binding ViewModel.Config.Basic.ShowCornerAssignButton}"
+                    IsVisible="{Binding ViewModel.ShowCornerAssignButton}"
                     ToolTip.Tip="{x:Static core:Resources.Board_AddNote}"
                     WindowDecorationProperties.ElementRole="User"
                     Click="AddAssignmentButton_OnClick">

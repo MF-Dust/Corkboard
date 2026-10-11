@@ -7,10 +7,10 @@ using Corkboard.Core.Models.Board;
 namespace Corkboard.Core.Services.Board;
 
 /// <summary>
-///     作业板领域的实现：内存里维护作业、类型、科目三份集合。
+///     作业板领域的实现：内存里维护作业与科目两份集合。
 ///     <para>
 ///         落盘分两处，都是业务数据、都在 <c>data/board/</c>（与设置文件 <c>data/config/</c> 分开）：
-///         类型与科目写单份 <c>board.json</c>；**作业本身按创建日期分文件**，
+///         科目写单份 <c>board.json</c>；**作业本身按创建日期分文件**，
 ///         落在 <c>&lt;年&gt;/&lt;月&gt;/&lt;日&gt;/notes.json</c>，由 <see cref="IBoardNoteStore" /> 负责。
 ///     </para>
 /// </summary>
@@ -48,7 +48,7 @@ public class BoardService : IBoardService
             if (notes.Count > 0)
                 _noteStore.SaveAll(notes);
 
-            // 定义（类型/科目）也跟着搬过一次，立刻落盘，避免下次启动重复走搬迁。
+            // 定义（科目）也跟着搬过一次，立刻落盘，避免下次启动重复走搬迁。
             _configService.SaveConfig(_config);
         }
         else
@@ -60,15 +60,12 @@ public class BoardService : IBoardService
         }
 
         _notes = new ObservableCollection<BoardNote>(notes);
-        Types = new ObservableCollection<BoardTypeDef>(_config.Types);
         Subjects = new ObservableCollection<string>(_config.Subjects);
         _subjectOrder = [.. _config.SubjectOrder];
         Notes = new ReadOnlyObservableCollection<BoardNote>(_notes);
     }
 
     public ReadOnlyObservableCollection<BoardNote> Notes { get; }
-
-    public ObservableCollection<BoardTypeDef> Types { get; }
 
     public ObservableCollection<string> Subjects { get; }
 
@@ -99,7 +96,6 @@ public class BoardService : IBoardService
         }
 
         var target = _notes[index];
-        target.TypeId = note.TypeId;
         target.ContentKind = note.ContentKind;
         target.Content = note.Content;
         target.Subject = note.Subject;
@@ -108,7 +104,6 @@ public class BoardService : IBoardService
         // 「已清理」是板子上的可见性标记，跟着表单里的副本走：编辑一条作业不会把它
         // 从已清理状态里放出来，那是「还原」该干的事。
         target.CleanedAt = note.CleanedAt;
-        target.Values = new Dictionary<string, string>(note.Values);
 
         // 遗留字段是旧数据的只读快照：内容换了格式（编辑表单给的一定是富文本）就该丢掉，
         // 留着只会让下一个版本的读法继续有歧义。
@@ -162,11 +157,6 @@ public class BoardService : IBoardService
         return cleaned;
     }
 
-    public BoardTypeDef? FindType(Guid? typeId)
-    {
-        return typeId is { } value ? Types.FirstOrDefault(type => type.Id == value) : null;
-    }
-
     public void Save()
     {
         Persist();
@@ -181,15 +171,18 @@ public class BoardService : IBoardService
         {
             var name = subject.Trim();
 
-            // 空科目（界面上是「未分类」区块）、重复项都只留第一次出现的那个。
-            if (name.Length > 0 && !_subjectOrder.Contains(name, StringComparer.Ordinal))
+            // 重复项只留第一次出现的那个；空科目（界面上是「未分类」区块）也要占位，
+            // 否则用户怎么拖它都排不到指定位置、松手就被弹回最后。
+            if (!_subjectOrder.Contains(name, StringComparer.Ordinal))
             {
                 _subjectOrder.Add(name);
             }
         }
 
         // 已经从科目清单里删掉的科目没必要占着位置；留着也不会显示，只是脏数据。
-        _subjectOrder.RemoveAll(name => !Subjects.Any(s => string.Equals(s.Trim(), name, StringComparison.Ordinal)));
+        // 「未分类」不参与这条过滤：它本来就不在科目清单里，但它是板子上真实存在的区块。
+        _subjectOrder.RemoveAll(name =>
+            name.Length > 0 && !Subjects.Any(s => string.Equals(s.Trim(), name, StringComparison.Ordinal)));
 
         Persist();
     }
@@ -207,10 +200,6 @@ public class BoardService : IBoardService
         foreach (var note in notes)
             _notes.Add(note);
 
-        Types.Clear();
-        foreach (var type in _config.Types)
-            Types.Add(type);
-
         Subjects.Clear();
         foreach (var subject in _config.Subjects)
             Subjects.Add(subject);
@@ -222,20 +211,14 @@ public class BoardService : IBoardService
     }
 
     /// <summary>
-    ///     把旧版单文件里的类型与科目并回当前定义。**只在定义文件本来不存在时**才接管：
-    ///     那说明这是我们第一次为这个用户建定义，旧文件里的就是他原来的类型与科目。
+    ///     把旧版单文件里的科目并回当前定义。**只在定义文件本来不存在时**才接管：
+    ///     那说明这是我们第一次为这个用户建定义，旧文件里的就是他原来的科目。
     ///     文件已存在则表示用户已经在设置里管过自己的定义（哪怕他故意清空了），一律不覆盖。
     /// </summary>
     private void MergeLegacyDefinition(LegacyBoardFile legacy, bool definitionExists)
     {
-        if (!definitionExists)
-        {
-            if (legacy.Types.Count > 0)
-                _config.Types = legacy.Types;
-
-            if (legacy.Subjects.Count > 0)
-                _config.Subjects = legacy.Subjects;
-        }
+        if (!definitionExists && legacy.Subjects.Count > 0)
+            _config.Subjects = legacy.Subjects;
 
         // 旧文件由存储层负责删：它才知道旧文件到底在哪个路径。
         _noteStore.TryDeleteLegacy();
@@ -257,14 +240,12 @@ public class BoardService : IBoardService
 
     private void Persist()
     {
-        _config.Types = [.. Types];
         _config.Subjects = [.. Subjects];
         _config.SubjectOrder = [.. _subjectOrder];
         _configService.SaveConfig(_config);
 
         _noteStore.SaveAll([.. _notes]);
-        _logger.LogInformation("Board persisted: {Notes} notes in dated files, {Types} types",
-            _notes.Count, Types.Count);
+        _logger.LogInformation("Board persisted: {Notes} notes in dated files", _notes.Count);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

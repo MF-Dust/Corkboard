@@ -149,9 +149,7 @@ public class BoardServiceTests
         {
             Id = note.Id,
             Content = "新内容",
-            Subject = "数学",
-            TypeId = Guid.NewGuid(),
-            Values = { ["f1"] = "12-15" }
+            Subject = "数学"
         };
 
         Assert.True(service.Update(edited));
@@ -159,7 +157,6 @@ public class BoardServiceTests
         var stored = service.Notes.Single();
         Assert.Equal("新内容", stored.Content);
         Assert.Equal("数学", stored.Subject);
-        Assert.Equal("12-15", stored.Values["f1"]);
         Assert.True(stored.UpdatedAt > new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         Assert.Equal(savesBefore + 1, config.SaveCount);
         Assert.Equal(1, changed);
@@ -219,8 +216,18 @@ public class BoardServiceTests
 
         service.SetSubjectOrder([" 数学 ", "数学", "语文", "  ", "语文"]);
 
-        // 空科目（界面上是「未分类」区块）不记进顺序表，重复项只留第一次。
-        Assert.Equal(["数学", "语文"], service.SubjectOrder);
+        // 「未分类」（空科目）也是板子上真实存在的区块，要能记住位置；重复项只留第一次。
+        Assert.Equal(["数学", "语文", ""], service.SubjectOrder);
+    }
+
+    [Fact]
+    public void SetSubjectOrder_KeepsUncategorizedInThePositionItWasDropped()
+    {
+        var (service, _, _) = CreateService();
+
+        service.SetSubjectOrder(["", "数学"]);
+
+        Assert.Equal(["", "数学"], service.SubjectOrder);
     }
 
     [Fact]
@@ -235,35 +242,23 @@ public class BoardServiceTests
     }
 
     [Fact]
-    public void FindType_ResolvesByIdAndToleratesMissing()
-    {        var (service, _, _) = CreateService();
-        var type = service.Types[0];
-
-        Assert.Same(type, service.FindType(type.Id));
-        Assert.Null(service.FindType(null));
-        Assert.Null(service.FindType(Guid.NewGuid()));
-    }
-
-    [Fact]
-    public void Save_PersistsEditedTypesAndSubjects()
+    public void Save_PersistsEditedSubjects()
     {
         var (service, config, _) = CreateService();
         var before = config.SaveCount;
 
-        service.Types.Add(new BoardTypeDef { Name = "作文" });
         service.Subjects.Add("物理");
         service.Save();
 
         // 集合本身不会自动落盘，必须显式 Save——这是领域服务而不是配置管道的用法。
         Assert.Equal(before + 1, config.SaveCount);
-        Assert.Contains(service.Types, type => type.Name == "作文");
         Assert.Contains("物理", service.Subjects);
     }
 
     [Fact]
     public void Notes_ComeFromTheNoteStoreNotTheConfigFile()
     {
-        // 作业的定义（类型/科目）与作业本身是两份存储：作业只认归档目录。
+        // 作业的定义（科目）与作业本身是两份存储：作业只认归档目录。
         var store = new InMemoryNoteStore();
         var note = new BoardNote();
         note.SetHtmlContent("<p>来自归档目录</p>");
@@ -279,7 +274,7 @@ public class BoardServiceTests
         service.Save();
         var stored = (BoardConfig)config.Saved[new BoardConfig().ConfigFilePath];
         var json = JsonSerializer.Serialize(stored, ConfigServiceBase.JsonOptions);
-        Assert.Contains("\"types\"", json);
+        Assert.Contains("\"subjects\"", json);
         Assert.DoesNotContain("\"notes\"", json);
     }
 
@@ -287,10 +282,9 @@ public class BoardServiceTests
     public void Reload_ReadsBackWhatWasPersisted()
     {
         var (service, config, store) = CreateService();
-        var draft = new BoardNote { Values = { ["f1"] = "12-15" } };
+        var draft = new BoardNote();
         draft.SetHtmlContent("<p>数学</p>");
         service.Add(draft);
-        service.Types.Add(new BoardTypeDef { Name = "作文" });
         service.Save();
 
         var reloaded = new BoardService(config, store, NullLogger<BoardService>.Instance);
@@ -298,19 +292,15 @@ public class BoardServiceTests
         Assert.Single(reloaded.Notes);
         Assert.Equal("<p>数学</p>", reloaded.Notes[0].Content);
         Assert.Equal(BoardContentKind.Html, reloaded.Notes[0].ContentKind);
-        Assert.Equal("12-15", reloaded.Notes[0].Values["f1"]);
-        Assert.Contains(reloaded.Types, type => type.Name == "作文");
     }
 
     [Fact]
-    public void FreshConfig_ComesWithSeedTypes()
+    public void FreshConfig_ComesWithSeedSubjects()
     {
-        // 首次运行（没有任何作业文件）时不应该是一张白纸：得先有几种常见作业类型可挑。
+        // 首次运行（没有任何作业文件）时不应该是一张白纸：科目得先有几个常见的。
         var (service, _, _) = CreateService();
 
-        Assert.NotEmpty(service.Types);
-        Assert.Contains(service.Types,
-            type => type.Fields.Any(field => field.Kind == BoardFieldKind.PageRange));
+        Assert.NotEmpty(service.Subjects);
     }
 
     [Fact]
@@ -335,28 +325,24 @@ public class BoardServiceTests
     [Fact]
     public void LegacyDefinition_IsTakenOverWhenNoDefinitionFileExistedYet()
     {
-        // 全新安装的第一次迁移：定义文件还没建过，旧文件里的类型与科目就是用户原来那份，应当接管。
+        // 全新安装的第一次迁移：定义文件还没建过，旧文件里的科目就是用户原来那份，应当接管。
         var legacy = new LegacyBoardFile();
         legacy.Notes.Add(new BoardNote { Content = "旧作业" });
-        legacy.Types.Clear();
-        legacy.Types.Add(new BoardTypeDef { Name = "旧类型" });
         legacy.Subjects.Clear();
         legacy.Subjects.Add("旧科目");
         var store = new InMemoryNoteStore { LegacyFile = legacy };
 
         var (service, _, _) = CreateService(store: store);
 
-        Assert.Contains(service.Types, type => type.Name == "旧类型");
         Assert.Contains("旧科目", service.Subjects);
     }
 
     [Fact]
     public void LegacyDefinition_IsNotTakenOverWhenCurrentDefinitionExists()
     {
-        // 定义文件已经存在（用户管过自己的类型与科目，哪怕清空了）：旧文件里的定义不该回灌，只搬作业。
+        // 定义文件已经存在（用户管过自己的科目，哪怕清空了）：旧文件里的定义不该回灌，只搬作业。
         var legacy = new LegacyBoardFile();
         legacy.Notes.Add(new BoardNote { Content = "旧作业" });
-        legacy.Types.Add(new BoardTypeDef { Name = "旧类型" });
         legacy.Subjects.Add("旧科目");
         var store = new InMemoryNoteStore { LegacyFile = legacy };
 
@@ -367,7 +353,6 @@ public class BoardServiceTests
 
         // 作业照搬，定义保持用户自己的。
         Assert.Single(service.Notes);
-        Assert.DoesNotContain(service.Types, type => type.Name == "旧类型");
         Assert.DoesNotContain("旧科目", service.Subjects);
     }
 

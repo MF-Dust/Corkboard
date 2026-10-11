@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -28,7 +27,7 @@ namespace Corkboard.ViewModels.MainPages;
 ///         <see cref="BaseColor" />），这里不需要再记标注，也不需要跟着文本位移挪标注。
 ///     </para>
 ///     <para>
-///         表单活得很短：每次打开都新建一个，类型清单只在构造时读一次，
+///         表单活得很短：每次打开都新建一个，科目清单只在构造时读一次，
 ///         所以不订阅 <see cref="IBoardService.Changed" />，也就没有 transient 订阅单例的回收问题。
 ///     </para>
 /// </summary>
@@ -51,21 +50,12 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
         BaseFontSize = BoardContentStyle.ClampFontSize(_settings.DefaultContentFontSize);
         BaseColor = _settings.DefaultContentColor;
 
-        TypeOptions = [new BoardTypeOption(null, CR.Board_TypeDirect)];
-        foreach (var type in _boardService.Types)
-            TypeOptions.Add(new BoardTypeOption(type, type.DisplayName));
-
         SubjectOptions = [.. _boardService.Subjects];
 
-        // 默认停在「直接写」，并顺带把字段区建起来。
-        SelectedOption = TypeOptions[0];
+        // 「布置作业」默认明天截止：今天布置、明天要交是常态，省得每次都去点日历。
+        // 编辑已有作业时 LoadForEdit 会把它换成那条作业自己的截止日期（原来没设的就是空）。
+        DueDateDraft = DateTime.Today.AddDays(1);
     }
-
-    /// <summary>类型下拉的选项，第一项是「直接写」。</summary>
-    public ObservableCollection<BoardTypeOption> TypeOptions { get; } = [];
-
-    /// <summary>当前类型要填的字段。选「直接写」时是空的。</summary>
-    public ObservableCollection<BoardFieldDraft> DraftFields { get; } = [];
 
     /// <summary>
     ///     科目下拉的选项。默认就是科目清单；编辑一条科目已被设置页删掉的旧作业时，
@@ -78,8 +68,6 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
 
     /// <summary>设置里配的默认颜色；为空表示跟随主题。</summary>
     public Color? BaseColor { get; }
-
-    [ObservableProperty] private BoardTypeOption? _selectedOption;
 
     /// <summary>内容的 HTML 片段，编辑器的双向绑定源（回写时已经是干净版本）。</summary>
     [ObservableProperty] private string _draftHtml = string.Empty;
@@ -101,8 +89,6 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
     /// <summary>挑没挑日期。「清除」按钮靠它决定显不显示。</summary>
     public bool HasDueDate => DueDateDraft is not null;
 
-    public bool HasDraftFields => DraftFields.Count > 0;
-
     /// <summary>是否在编辑已有作业。为真时表单显示「保存」，标题也换一个。</summary>
     public bool IsEditing => _editingNoteId is not null;
 
@@ -111,9 +97,8 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
     /// <summary>确定按钮的文案：新建是「布置」，编辑是「保存」。</summary>
     public string ConfirmText => IsEditing ? CR.Board_SaveEdit : CR.Board_ConfirmAdd;
 
-    /// <summary>内容或任一字段有内容才让点确定，避免建出空作业。</summary>
-    public bool CanConfirm =>
-        DraftHtml.Trim().Length > 0 || DraftFields.Any(draft => draft.HasValue);
+    /// <summary>内容写了东西才让点确定，避免建出空作业。</summary>
+    public bool CanConfirm => DraftHtml.Trim().Length > 0;
 
     /// <summary>把这条作业的内容填进表单，之后确定就变成「保存」。</summary>
     public void LoadForEdit(BoardNote note)
@@ -126,10 +111,6 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
         if (subject.Length > 0 && !SubjectOptions.Contains(subject, StringComparer.Ordinal))
             SubjectOptions.Add(subject);
 
-        // 先定类型：这一步会按类型重建字段区，值必须在重建之后才填得进去。
-        SelectedOption = TypeOptions.FirstOrDefault(option => option.Type?.Id == note.TypeId) ?? TypeOptions[0];
-        BuildDraftFields();
-
         DraftSubject = subject.Length > 0 ? subject : null;
 
         // 内容已经是富文本 HTML（旧数据在加载作业时迁过），直接交给编辑器装填。
@@ -137,12 +118,6 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
 
         // 截止日期：没设过的作业留空，选择器就是空的。
         DueDateDraft = note.DueDate is { } due ? due.ToDateTime(TimeOnly.MinValue) : null;
-
-        foreach (var draft in DraftFields)
-        {
-            if (note.Values.TryGetValue(draft.Field.Id.ToString(), out var raw) && !string.IsNullOrEmpty(raw))
-                draft.LoadRawValue(raw);
-        }
 
         OnPropertyChanged(nameof(IsEditing));
         OnPropertyChanged(nameof(FormTitle));
@@ -165,16 +140,12 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
 
         var note = new BoardNote
         {
-            TypeId = SelectedOption?.Type?.Id,
             Subject = DraftSubject?.Trim() ?? string.Empty,
             DueDate = DraftDueDate
         };
 
         // 内容是富文本片段：一次写好 Content 与 ContentKind，顺手清掉旧的标注字段。
         note.SetHtmlContent(DraftHtml.Trim());
-
-        foreach (var draft in DraftFields.Where(draft => draft.HasValue))
-            note.Values[draft.Field.Id.ToString()] = draft.RawValue;
 
         if (_editingNoteId is { } id)
         {
@@ -190,11 +161,6 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
 
         _boardService.Add(note);
         _overlay.Close();
-    }
-
-    partial void OnSelectedOptionChanged(BoardTypeOption? value)
-    {
-        BuildDraftFields();
     }
 
     partial void OnDraftHtmlChanged(string value)
@@ -214,30 +180,4 @@ public partial class BoardAssignmentFormViewModel : ObservableObject
     /// </summary>
     [RelayCommand]
     private void ClearDueDate() => DueDateDraft = null;
-
-    private void BuildDraftFields()
-    {
-        foreach (var draft in DraftFields)
-            draft.PropertyChanged -= OnDraftFieldChanged;
-
-        DraftFields.Clear();
-        if (SelectedOption?.Type is { } type)
-        {
-            foreach (var field in type.Fields)
-            {
-                var draft = BoardFieldDraftFactory.Create(field);
-                draft.PropertyChanged += OnDraftFieldChanged;
-                DraftFields.Add(draft);
-            }
-        }
-
-        OnPropertyChanged(nameof(HasDraftFields));
-        OnPropertyChanged(nameof(CanConfirm));
-    }
-
-    private void OnDraftFieldChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(BoardFieldDraft.HasValue) or null)
-            OnPropertyChanged(nameof(CanConfirm));
-    }
 }

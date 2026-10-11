@@ -109,24 +109,8 @@
   <data name="Board_Uncategorized" xml:space="preserve">
     <value>未分类</value>
   </data>
-  <data name="Board_Untitled" xml:space="preserve">
-    <value>未命名</value>
-  </data>
-  <data name="Board_UntitledField" xml:space="preserve">
-    <value>未命名字段</value>
-  </data>
-  <data name="Board_TypeLabel" xml:space="preserve">
-    <value>类型</value>
-  </data>
-  <data name="Board_TypeDirect" xml:space="preserve">
-    <value>直接写</value>
-  </data>
   <data name="Board_SubjectLabel" xml:space="preserve">
     <value>科目</value>
-  </data>
-  <!-- 页数区间的显示格式：{0} 起页、{1} 止页。 -->
-  <data name="Board_PageRangeFormat" xml:space="preserve">
-    <value>P{0}–{1}</value>
   </data>
   <data name="Board_EmptyTitle" xml:space="preserve">
     <value>还没有作业</value>
@@ -162,40 +146,7 @@
   <data name="Board_ReplayReadOnlyHint" xml:space="preserve">
     <value>回放期间不能改动作业</value>
   </data>
-  <data name="Board_FieldKind_Text" xml:space="preserve">
-    <value>文本</value>
-  </data>
-  <data name="Board_FieldKind_Paragraph" xml:space="preserve">
-    <value>多行文本</value>
-  </data>
-  <data name="Board_FieldKind_Number" xml:space="preserve">
-    <value>数字</value>
-  </data>
-  <data name="Board_FieldKind_PageRange" xml:space="preserve">
-    <value>页数区间</value>
-  </data>
-  <!-- 首次运行打底的作业类型与科目，用户可以在设置里改。 -->
-  <data name="Board_Seed_Type_Workbook" xml:space="preserve">
-    <value>练习册</value>
-  </data>
-  <data name="Board_Seed_Type_Copy" xml:space="preserve">
-    <value>抄写</value>
-  </data>
-  <data name="Board_Seed_Type_Recite" xml:space="preserve">
-    <value>背诵</value>
-  </data>
-  <data name="Board_Seed_Type_Paper" xml:space="preserve">
-    <value>卷子</value>
-  </data>
-  <data name="Board_Seed_Field_Pages" xml:space="preserve">
-    <value>页数</value>
-  </data>
-  <data name="Board_Seed_Field_Content" xml:space="preserve">
-    <value>内容</value>
-  </data>
-  <data name="Board_Seed_Field_Times" xml:space="preserve">
-    <value>遍数</value>
-  </data>
+  <!-- 首次运行打底的科目，用户可以在设置里改。 -->
   <data name="Board_Seed_Subject_Chinese" xml:space="preserve">
     <value>语文</value>
   </data>
@@ -226,8 +177,27 @@
   <data name="Settings_Group_About" xml:space="preserve">
     <value>关于</value>
   </data>
+  <!-- 设置页里的分区标题：一页里的设置按用途分块。 -->
+  <data name="Settings_Section_Startup" xml:space="preserve">
+    <value>启动</value>
+  </data>
+  <data name="Settings_Section_Window" xml:space="preserve">
+    <value>窗口</value>
+  </data>
+  <data name="Settings_Section_DeleteAndCleanup" xml:space="preserve">
+    <value>删除与清理</value>
+  </data>
+  <data name="Settings_Section_StyleAndPalette" xml:space="preserve">
+    <value>样式与色板</value>
+  </data>
+  <data name="Settings_Section_Theme" xml:space="preserve">
+    <value>主题与颜色</value>
+  </data>
+  <data name="Settings_Section_Font" xml:space="preserve">
+    <value>字体与字重</value>
+  </data>
   <data name="Settings_Basic_Title" xml:space="preserve">
-    <value>基础设置</value>
+    <value>通用</value>
   </data>
   <data name="Settings_Basic_Language" xml:space="preserve">
     <value>语言</value>
@@ -246,55 +216,55 @@
     <value>开机自启</value>
   </data>
   <data name="Settings_Basic_AutostartDescription" xml:space="preserve">
-    <value>登录系统后自动启动应用，是否显示主窗口由下面的开关决定</value>
+    <value>开机后自己启动，不用手动打开</value>
   </data>
   <data name="Settings_Basic_ShowStartupWindow" xml:space="preserve">
     <value>启动时显示主窗口</value>
   </data>
   <data name="Settings_Basic_ShowStartupWindowDescription" xml:space="preserve">
-    <value>关闭后启动时只常驻托盘，点击托盘图标才显示窗口</value>
+    <value>关掉后就待在托盘里，点托盘图标才出来</value>
   </data>
   <data name="Settings_Basic_AutoSaveWindowSize" xml:space="preserve">
     <value>记住窗口大小与位置</value>
   </data>
   <data name="Settings_Basic_AutoSaveWindowSizeDescription" xml:space="preserve">
-    <value>退出时保存主窗口与设置窗口的尺寸、最大化状态，以及主窗口在屏幕上的位置；屏幕尺寸变过就等比缩到对应位置</value>
+    <value>下次打开时还是上次的大小和位置</value>
   </data>
   <data name="Settings_Basic_PinToDesktop" xml:space="preserve">
     <value>置底到桌面</value>
   </data>
   <data name="Settings_Basic_PinToDesktopDescription" xml:space="preserve">
-    <value>把主窗口嵌进桌面层，被所有普通窗口盖住</value>
+    <value>贴在桌面上，会被别的窗口盖住</value>
   </data>
   <data name="Settings_Basic_HoldToDragWindow" xml:space="preserve">
     <value>长按拖动窗口</value>
   </data>
   <data name="Settings_Basic_HoldToDragWindowDescription" xml:space="preserve">
-    <value>长按主窗口任意位置即可拖动窗口；关闭后只有顶部标题栏能拖动</value>
+    <value>按住窗口空白处就能拖，不用抓标题栏</value>
   </data>
   <data name="Settings_Basic_MainWindowOpacity" xml:space="preserve">
     <value>主窗口不透明度</value>
   </data>
   <data name="Settings_Basic_MainWindowOpacityDescription" xml:space="preserve">
-    <value>整块主窗口（含作业内容）一起变淡；数值越小越透明</value>
+    <value>数值越小越透明，能看见后面的窗口</value>
   </data>
   <data name="Settings_Basic_ClickThrough" xml:space="preserve">
     <value>点击穿透</value>
   </data>
   <data name="Settings_Basic_ClickThroughDescription" xml:space="preserve">
-    <value>主窗口不再响应鼠标与触摸，需要改设置时从托盘菜单打开</value>
+    <value>鼠标点不到窗口，改设置要从托盘菜单进</value>
   </data>
   <data name="Settings_Basic_CornerAssignButton" xml:space="preserve">
     <value>右下角布置作业按钮</value>
   </data>
   <data name="Settings_Basic_CornerAssignButtonDescription" xml:space="preserve">
-    <value>在主窗口右下角浮一颗按钮，点一下就能布置作业</value>
+    <value>右下角浮一颗加号，顺手就能布置作业</value>
   </data>
   <data name="Settings_Group_Board" xml:space="preserve">
     <value>作业板</value>
   </data>
   <data name="Settings_Board_Title" xml:space="preserve">
-    <value>作业板设置</value>
+    <value>作业板</value>
   </data>
   <data name="Settings_Board_Name" xml:space="preserve">
     <value>名称</value>
@@ -306,13 +276,19 @@
     <value>排布</value>
   </data>
   <data name="Settings_Board_LayoutDescription" xml:space="preserve">
-    <value>便签在主页面上怎么摆：单列限宽居中，区块按窗口宽度自适应分栏</value>
+    <value>单列居中，或者按窗口宽度分栏</value>
   </data>
   <data name="Settings_Board_BlockMinWidth" xml:space="preserve">
     <value>区块宽度</value>
   </data>
   <data name="Settings_Board_BlockMinWidthDescription" xml:space="preserve">
-    <value>区块排布下单块的最小宽度：调大就少排几列、每块更宽，默认 300</value>
+    <value>一格大概多宽，调大就会少排几列</value>
+  </data>
+  <data name="Settings_Board_BlockWidthAdaptive" xml:space="preserve">
+    <value>区块宽度自适应</value>
+  </data>
+  <data name="Settings_Board_BlockWidthAdaptiveDescription" xml:space="preserve">
+    <value>一格跟着窗口变宽，到上限才换行</value>
   </data>
   <data name="Board_Sort_Tip" xml:space="preserve">
     <value>排序方式：{0}</value>
@@ -339,44 +315,14 @@
     <value>科目</value>
   </data>
   <data name="Settings_Board_SubjectsDescription" xml:space="preserve">
-    <value>用逗号分隔，新建作业时可以从这里选</value>
-  </data>
-  <data name="Settings_Board_Types" xml:space="preserve">
-    <value>作业类型</value>
-  </data>
-  <data name="Settings_Board_TypesDescription" xml:space="preserve">
-    <value>每种作业要填哪些字段；新建时选中类型就按这些字段展开输入</value>
-  </data>
-  <data name="Settings_Board_TypeAdd" xml:space="preserve">
-    <value>添加类型</value>
-  </data>
-  <data name="Settings_Board_TypeDelete" xml:space="preserve">
-    <value>删除类型</value>
-  </data>
-  <data name="Settings_Board_TypeDeleteMessage" xml:space="preserve">
-    <value>删掉之后找不回来，已经用它建的作业会变成直接写的作业</value>
-  </data>
-  <data name="Settings_Board_TypeNamePlaceholder" xml:space="preserve">
-    <value>类型名，如练习册</value>
-  </data>
-  <data name="Settings_Board_TypeFieldAdd" xml:space="preserve">
-    <value>添加字段</value>
-  </data>
-  <data name="Settings_Board_FieldLabelPlaceholder" xml:space="preserve">
-    <value>字段名，如页数</value>
-  </data>
-  <data name="Settings_Board_FieldKind" xml:space="preserve">
-    <value>值类型</value>
-  </data>
-  <data name="Settings_Board_FieldDelete" xml:space="preserve">
-    <value>删除字段</value>
+    <value>用逗号分开，布置作业时从这里挑</value>
   </data>
   <!-- 内容的默认字号/颜色：新作业没单独定的时候用它们。 -->
   <data name="Settings_Board_ContentStyle" xml:space="preserve">
     <value>内容默认样式</value>
   </data>
   <data name="Settings_Board_ContentStyleDescription" xml:space="preserve">
-    <value>新作业内容的默认字号与颜色；单条作业里可以再单独改</value>
+    <value>新作业默认的字号和颜色，单条还能再改</value>
   </data>
   <data name="Settings_Board_DefaultFontSize" xml:space="preserve">
     <value>默认字号</value>
@@ -387,11 +333,30 @@
   <data name="Settings_Board_DefaultColorFollowTheme" xml:space="preserve">
     <value>跟随主题</value>
   </data>
+  <!-- 作业板上两处小字的字号：科目标题，以及作业条上的说明文字与截止日期。 -->
+  <data name="Settings_Board_FontSizes" xml:space="preserve">
+    <value>字号</value>
+  </data>
+  <data name="Settings_Board_FontSizesDescription" xml:space="preserve">
+    <value>科目名和那行小字的字号，调大后排也看得清</value>
+  </data>
+  <data name="Settings_Board_SubjectFontSize" xml:space="preserve">
+    <value>科目标题字号</value>
+  </data>
+  <data name="Settings_Board_SubjectFontSizeDescription" xml:space="preserve">
+    <value>科目名那一行用多大的字</value>
+  </data>
+  <data name="Settings_Board_NoteMetaFontSize" xml:space="preserve">
+    <value>作业条小字字号</value>
+  </data>
+  <data name="Settings_Board_NoteMetaFontSizeDescription" xml:space="preserve">
+    <value>截止日期那行小字的字号</value>
+  </data>
   <data name="Settings_Board_Palette" xml:space="preserve">
     <value>快速颜色</value>
   </data>
   <data name="Settings_Board_PaletteDescription" xml:space="preserve">
-    <value>编辑框上方工具条里那排快速颜色；最多 5 个，工具条上还能手输色值</value>
+    <value>工具栏上那排常用色，最多放 5 个</value>
   </data>
   <data name="Settings_Board_PaletteAdd" xml:space="preserve">
     <value>添加颜色</value>
@@ -410,7 +375,7 @@
     <value>自动清理</value>
   </data>
   <data name="Settings_Board_CleanupDescription" xml:space="preserve">
-    <value>过了截止日期的作业会从板子上清掉，数据本身不会被删</value>
+    <value>到了截止日期就从板子上收走，数据还在</value>
   </data>
   <data name="Settings_Board_CleanupEnabled" xml:space="preserve">
     <value>启用自动清理</value>
@@ -419,7 +384,7 @@
     <value>清理周期</value>
   </data>
   <data name="Settings_Board_CleanupFrequencyDescription" xml:space="preserve">
-    <value>到点才动手；应用当时没开着，会在下次启动后补上</value>
+    <value>多久清一次，当时没开机就下次启动补上</value>
   </data>
   <data name="Settings_Board_CleanupFrequency_Daily" xml:space="preserve">
     <value>每天</value>
@@ -434,7 +399,7 @@
     <value>清理时刻</value>
   </data>
   <data name="Settings_Board_CleanupTimeDescription" xml:space="preserve">
-    <value>到了这个点，过了截止日期的作业就从板子上清掉；没填截止日期的作业不会被清</value>
+    <value>每天几点动手，没填截止日期的不会清</value>
   </data>
   <data name="Settings_Board_CleanupRunNow" xml:space="preserve">
     <value>立即清理</value>
@@ -477,7 +442,7 @@
     <value>截止日期</value>
   </data>
   <data name="Settings_Board_DueDateDescription" xml:space="preserve">
-    <value>留空就按创建时间算过期；填上之后以它为准</value>
+    <value>不填的话这条作业不会被自动清理</value>
   </data>
   <data name="Settings_Board_DueDateClear" xml:space="preserve">
     <value>清除</value>
@@ -507,7 +472,7 @@
     <value>主题</value>
   </data>
   <data name="Settings_Appearance_ThemeDescription" xml:space="preserve">
-    <value>浅色、深色，或跟随系统</value>
+    <value>界面用浅色、深色，还是跟着系统走</value>
   </data>
   <data name="Settings_Appearance_Theme_FollowSystem" xml:space="preserve">
     <value>跟随系统</value>
@@ -522,7 +487,7 @@
     <value>主题色</value>
   </data>
   <data name="Settings_Appearance_ThemeColorDescription" xml:space="preserve">
-    <value>用系统里挑的主题色，或自己指定一个颜色</value>
+    <value>用系统的强调色，也可以自己挑一个</value>
   </data>
   <data name="Settings_Appearance_ThemeColorMode_Default" xml:space="preserve">
     <value>跟随系统</value>
@@ -534,7 +499,7 @@
     <value>字体</value>
   </data>
   <data name="Settings_Appearance_FontFamilyDescription" xml:space="preserve">
-    <value>界面显示用的字体，改完立即生效</value>
+    <value>界面用的字体，选完立刻生效</value>
   </data>
   <data name="Settings_Appearance_FontFamilyDefault" xml:space="preserve">
     <value>MiSans（默认）</value>
@@ -543,7 +508,7 @@
     <value>字体粗细</value>
   </data>
   <data name="Settings_Appearance_FontWeightDescription" xml:space="preserve">
-    <value>界面文字的粗细，字体没有这档粗细时取最接近的一档</value>
+    <value>界面文字多粗，字体没这一档就取最接近的</value>
   </data>
   <data name="Settings_Appearance_FontWeight_Thin" xml:space="preserve">
     <value>极细</value>
@@ -579,10 +544,10 @@
     <value>版本</value>
   </data>
   <data name="Settings_About_License" xml:space="preserve">
-    <value>本项目以 GNU GPLv3 协议发布</value>
+    <value>以 GPLv3 协议开源</value>
   </data>
   <data name="Settings_About_Description" xml:space="preserve">
-    <value>一块随处可用的作业板</value>
+    <value>一块放在桌面上随手用的作业板</value>
   </data>
   <data name="Settings_About_LicenseTitle" xml:space="preserve">
     <value>应用协议</value>
@@ -597,25 +562,25 @@
     <value>黎泽懿_Aionflux</value>
   </data>
   <data name="Settings_About_AuthorDescription" xml:space="preserve">
-    <value>Corkboard 主开发者</value>
+    <value>作业板的主要开发者</value>
   </data>
   <data name="Settings_About_Bilibili" xml:space="preserve">
     <value>哔哩哔哩</value>
   </data>
   <data name="Settings_About_BilibiliDescription" xml:space="preserve">
-    <value>访问 黎泽懿_Aionflux 的哔哩哔哩账号</value>
+    <value>作者的 B 站主页，点一下就能打开</value>
   </data>
   <data name="Settings_About_Donate" xml:space="preserve">
     <value>捐赠支持</value>
   </data>
   <data name="Settings_About_DonateDescription" xml:space="preserve">
-    <value>访问 黎泽懿_Aionflux 的爱发电账号，支持项目发展，感谢您的捐赠</value>
+    <value>喜欢的话可以支持一下作者</value>
   </data>
   <data name="Settings_About_Organization" xml:space="preserve">
     <value>SECTL 思拓创联</value>
   </data>
   <data name="Settings_About_OrganizationDescription" xml:space="preserve">
-    <value>Corkboard 所属组织</value>
+    <value>Corkboard 所属的组织</value>
   </data>
   <data name="Settings_About_OrganizationHome" xml:space="preserve">
     <value>组织主页</value>
@@ -631,5 +596,50 @@
   </data>
   <data name="Settings_About_Runtime" xml:space="preserve">
     <value>运行时</value>
+  </data>
+  <data name="Settings_Account_Title" xml:space="preserve">
+    <value>账号</value>
+  </data>
+  <data name="Settings_Account_Description" xml:space="preserve">
+    <value>登录 SECTL 组织账号后可使用需要账号的功能</value>
+  </data>
+  <data name="Settings_Account_Profile" xml:space="preserve">
+    <value>账号资料</value>
+  </data>
+  <data name="Settings_Account_ProfileDescription" xml:space="preserve">
+    <value>当前登录的 SECTL 账号</value>
+  </data>
+  <data name="Settings_Account_SignedOut" xml:space="preserve">
+    <value>未登录</value>
+  </data>
+  <data name="Settings_Account_Reauthorize" xml:space="preserve">
+    <value>登录状态已失效，请重新登录</value>
+  </data>
+  <data name="Settings_Account_Email" xml:space="preserve">
+    <value>邮箱</value>
+  </data>
+  <data name="Settings_Account_SignIn" xml:space="preserve">
+    <value>登录</value>
+  </data>
+  <data name="Settings_Account_SignOut" xml:space="preserve">
+    <value>退出登录</value>
+  </data>
+  <data name="Settings_Account_Waiting" xml:space="preserve">
+    <value>等待浏览器完成授权</value>
+  </data>
+  <data name="Settings_Account_WaitingDescription" xml:space="preserve">
+    <value>请在打开的浏览器窗口中完成登录</value>
+  </data>
+  <data name="Settings_Account_Error" xml:space="preserve">
+    <value>操作失败</value>
+  </data>
+  <data name="Settings_Account_ErrorDescription" xml:space="preserve">
+    <value>请稍后重试</value>
+  </data>
+  <data name="Settings_Account_SignOutConfirmTitle" xml:space="preserve">
+    <value>退出登录</value>
+  </data>
+  <data name="Settings_Account_SignOutConfirmMessage" xml:space="preserve">
+    <value>退出后本机保存的登录凭据会被删除，需要重新登录才能继续使用账号功能</value>
   </data>
 </root>

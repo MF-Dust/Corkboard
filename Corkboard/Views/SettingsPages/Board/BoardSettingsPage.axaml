@@ -4,7 +4,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:fa="using:FluentAvalonia.UI.Controls"
              xmlns:vm="using:Corkboard.ViewModels.SettingsPages"
-             xmlns:board="using:Corkboard.Core.Models.Board"
              xmlns:core="using:Corkboard.Core.Langs.Common"
              mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="450"
              x:Class="Corkboard.Views.SettingsPages.Board.BoardSettingsPage"
@@ -17,12 +16,23 @@
             见 Core/Styles/StylesBase.axaml。
         -->
         <StackPanel Classes="page-container">
+            <!-- 页标题画在 page-container 里：它才和设置卡同宽、同左边缘，并随卡片一起滚动。 -->
+            <TextBlock Margin="0 4 0 0"
+                       FontWeight="Normal"
+                       Text="{x:Static core:Resources.Settings_Board_Title}"
+                       Theme="{StaticResource TitleTextBlockStyle}" />
+
+            <!--
+                作业板名称：不用按回车——停手 400ms 会自动提交（见 ViewModel 的 OnBoardNameDraftChanged），
+                回车与失焦则立刻提交。这个名字同时是主窗口标题。
+            -->
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Board_Name}">
                 <fa:FASettingsExpander.Footer>
                     <TextBox MinWidth="240"
                              Text="{Binding BoardNameDraft, Mode=TwoWay}"
                              PlaceholderText="{x:Static core:Resources.Settings_Board_NamePlaceholder}"
-                             KeyDown="OnBoardNameKeyDown" />
+                             KeyDown="OnBoardNameKeyDown"
+                             LostFocus="OnEditorLostFocus" />
                 </fa:FASettingsExpander.Footer>
             </fa:FASettingsExpander>
 
@@ -46,8 +56,9 @@
             </fa:FASettingsExpander>
 
             <!--
-                区块宽度（展示设置）：只在「区块」排布下起作用，填的是单块的最小宽度——
-                它决定一行排几块，宽度上限按它推出来。默认 300：1100px 宽的窗口大约排 3 块。
+                区块宽度（展示设置）：只在「区块」排布下起作用。上面那一格是单块的基准宽度——
+                它决定一行排几块；下面那个开关决定这宽度是死的还是活的：开着时单块在基准宽度与
+                它的上限之间随窗口伸缩（宽到上限才换行），关掉就固定成基准宽度。
                 上下限与 Core 的 BoardBlockStyle 一致，ViewModel 提交时还会再夹一次，
                 手输越界值不会落到配置里。
             -->
@@ -62,6 +73,13 @@
                                    Value="{Binding BlockMinWidthDraft, Mode=TwoWay}"
                                    LostFocus="OnEditorLostFocus" />
                 </fa:FASettingsExpander.Footer>
+
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Board_BlockWidthAdaptive}"
+                                           Description="{x:Static core:Resources.Settings_Board_BlockWidthAdaptiveDescription}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Board.BlockWidthAdaptive, Mode=TwoWay}" />
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
             </fa:FASettingsExpander>
 
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Board_Subjects}"
@@ -72,6 +90,9 @@
                              LostFocus="OnEditorLostFocus" />
                 </fa:FASettingsExpander.Footer>
             </fa:FASettingsExpander>
+
+            <TextBlock Classes="section-title"
+                       Text="{x:Static core:Resources.Settings_Section_DeleteAndCleanup}" />
 
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Board_ConfirmBeforeDelete}">
                 <fa:FASettingsExpander.Footer>
@@ -154,6 +175,9 @@
                 </fa:FASettingsExpanderItem>
             </fa:FASettingsExpander>
 
+            <TextBlock Classes="section-title"
+                       Text="{x:Static core:Resources.Settings_Section_StyleAndPalette}" />
+
             <!--
                 内容的默认样式：新作业没单独定「整篇字号」/颜色时用它们。
                 两个控件都绑草稿而不是配置：NumericUpDown 与取色器都是「一路动一路变」的控件，
@@ -191,6 +215,40 @@
                                            Text="{x:Static core:Resources.Settings_Board_DefaultColorFollowTheme}" />
                             </StackPanel>
                         </StackPanel>
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
+            </fa:FASettingsExpander>
+
+            <!--
+                两个字号：科目标题，以及作业条上的小字（类型与字段值、截止日期）。
+                原先一个跟着窗口默认值走、一个写死 12，后排看不清，所以都提到设置里。
+                同样绑草稿：NumericUpDown 每动一下就会落一次盘。
+            -->
+            <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Board_FontSizes}"
+                                   Description="{x:Static core:Resources.Settings_Board_FontSizesDescription}">
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Board_SubjectFontSize}"
+                                           Description="{x:Static core:Resources.Settings_Board_SubjectFontSizeDescription}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <NumericUpDown MinWidth="130"
+                                       Minimum="12"
+                                       Maximum="48"
+                                       Increment="1"
+                                       FormatString="0"
+                                       Value="{Binding SubjectFontSizeDraft, Mode=TwoWay}"
+                                       LostFocus="OnEditorLostFocus" />
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
+
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Board_NoteMetaFontSize}"
+                                           Description="{x:Static core:Resources.Settings_Board_NoteMetaFontSizeDescription}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <NumericUpDown MinWidth="130"
+                                       Minimum="10"
+                                       Maximum="32"
+                                       Increment="1"
+                                       FormatString="0"
+                                       Value="{Binding NoteMetaFontSizeDraft, Mode=TwoWay}"
+                                       LostFocus="OnEditorLostFocus" />
                     </fa:FASettingsExpanderItem.Footer>
                 </fa:FASettingsExpanderItem>
             </fa:FASettingsExpander>
@@ -247,80 +305,6 @@
                             Command="{Binding AddPaletteColorCommand}"
                             IsEnabled="{Binding CanAddPaletteColor}"
                             Content="{x:Static core:Resources.Settings_Board_PaletteAdd}" />
-                </StackPanel>
-            </fa:FASettingsExpander>
-
-            <!--
-                作业类型：每种作业有哪些字段。输入框一律用 LostFocus 触发保存，
-                避免默认的 PropertyChanged 每敲一个字符就写一遍 board.json。
-            -->
-            <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Board_Types}"
-                                   Description="{x:Static core:Resources.Settings_Board_TypesDescription}">
-                <StackPanel Spacing="12" Margin="0 4 0 0">
-                    <ItemsControl ItemsSource="{Binding Types}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="board:BoardTypeDef">
-                                <Border BorderThickness="0,0,0,1"
-                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                        Padding="0 0 0 12"
-                                        Margin="0 0 0 4">
-                                    <StackPanel Spacing="8">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBox Grid.Column="0"
-                                                     Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                     PlaceholderText="{x:Static core:Resources.Settings_Board_TypeNamePlaceholder}"
-                                                     LostFocus="OnEditorLostFocus" />
-                                            <Button Grid.Column="1"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="6"
-                                                    FontFamily="{DynamicResource FluentSystemIconsResizeable}"
-                                                    Content="&#xE61C;"
-                                                    ToolTip.Tip="{x:Static core:Resources.Settings_Board_TypeDelete}"
-                                                    Click="OnDeleteTypeClick" />
-                                        </Grid>
-
-                                        <ItemsControl ItemsSource="{Binding Fields}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="board:BoardTypeField">
-                                                    <Grid ColumnDefinitions="*,Auto,Auto"
-                                                          ColumnSpacing="8"
-                                                          Margin="0 0 0 6">
-                                                        <TextBox Grid.Column="0"
-                                                                 Text="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                                 PlaceholderText="{x:Static core:Resources.Settings_Board_FieldLabelPlaceholder}"
-                                                                 LostFocus="OnEditorLostFocus" />
-                                                        <!-- 值类型下拉：显示名列表与枚举数字同序，所以直接绑 SelectedIndex。 -->
-                                                        <ComboBox Grid.Column="1"
-                                                                  MinWidth="130"
-                                                                  ItemsSource="{x:Static board:BoardFieldKinds.DisplayNames}"
-                                                                  SelectedIndex="{Binding KindIndex, Mode=TwoWay}"
-                                                                  ToolTip.Tip="{x:Static core:Resources.Settings_Board_FieldKind}" />
-                                                        <Button Grid.Column="2"
-                                                                Background="Transparent"
-                                                                BorderThickness="0"
-                                                                Padding="6"
-                                                                FontFamily="{DynamicResource FluentSystemIconsResizeable}"
-                                                                Content="&#xE61C;"
-                                                                ToolTip.Tip="{x:Static core:Resources.Settings_Board_FieldDelete}"
-                                                                Click="OnDeleteFieldClick" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-
-                                        <Button HorizontalAlignment="Left"
-                                                Content="{x:Static core:Resources.Settings_Board_TypeFieldAdd}"
-                                                Click="OnAddFieldClick" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <Button HorizontalAlignment="Left"
-                            Command="{Binding AddTypeCommand}"
-                            Content="{x:Static core:Resources.Settings_Board_TypeAdd}" />
                 </StackPanel>
             </fa:FASettingsExpander>
         </StackPanel>

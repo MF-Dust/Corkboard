@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Globalization;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -69,14 +68,19 @@ public partial class BoardPageViewModel : ViewModelBase
     public bool IsBlockLayout => LayoutMode == BoardLayoutMode.Block;
 
     /// <summary>
-    ///     区块排布里单个区块的最小宽度（DIP）：一行能排几块由它决定。
+    ///     区块排布里单个区块的基准宽度（DIP）：一行能排几块由它决定。
     ///     用户在「设置 → 作业板 → 区块宽度」里填，这里过一遍夹取再交给面板。
     /// </summary>
     public double BlockMinWidth =>
         BoardBlockStyle.ClampMinItemWidth(Config.BoardSettings.BlockMinWidth);
 
-    /// <summary>区块宽度上限：由最小宽度推出来（默认 300 → 420），没有单独的设置项。</summary>
-    public double BlockMaxWidth => BoardBlockStyle.ResolveMaxItemWidth(BlockMinWidth);
+    /// <summary>
+    ///     区块宽度上限：自适应时由基准宽度推出来（默认 300 → 420），关掉自适应则等于基准宽度
+    ///     ——面板于是按固定宽度排，一行放不下才换行。开关见「设置 → 作业板 → 区块宽度自适应」。
+    /// </summary>
+    public double BlockMaxWidth => BoardBlockStyle.ResolveMaxItemWidth(
+        BlockMinWidth,
+        Config.BoardSettings.BlockWidthAdaptive);
 
     /// <summary>删除前是否要确认，页面在删之前问一次。</summary>
     public bool ConfirmBeforeDelete => Config.BoardSettings.ConfirmBeforeDelete;
@@ -88,8 +92,23 @@ public partial class BoardPageViewModel : ViewModelBase
     /// <summary>内容的默认颜色；为空表示跟随主题前景色。</summary>
     public Color? ContentDefaultColor => Config.BoardSettings.DefaultContentColor;
 
+    /// <summary>科目标题的字号（设置 → 作业板 → 字号）。记在科目区块项上，设置一改就重建列表。</summary>
+    public double SubjectFontSize =>
+        BoardTextStyle.ClampSubjectFontSize(Config.BoardSettings.SubjectFontSize);
+
+    /// <summary>作业条上小字（类型与字段值、截止日期）的字号。同样记在列表项上。</summary>
+    public double NoteMetaFontSize =>
+        BoardTextStyle.ClampMetaFontSize(Config.BoardSettings.NoteMetaFontSize);
+
     /// <summary>是否在回放中。为真时页面顶部给出提示、并且不显示删除按钮。</summary>
     public bool IsReplaying => _replay.IsActive;
+
+    /// <summary>
+    ///     作业条右侧那两颗按钮（编辑 / 删除）画不画。两种情况都不画：
+    ///     回放看的是历史快照、不接受增删；点击穿透开着时整窗收不到鼠标，画出来只是两颗点不动的图标。
+    ///     <para>值记在每个列表项上（<see cref="BoardNoteItem.CanModify" />），所以变化时要重建列表。</para>
+    /// </summary>
+    public bool CanModifyNotes => !_replay.IsActive && !Config.Basic.ClickThrough;
 
     /// <summary>回放提示文案，例如「回放中：停在 2026-10-06，板上有 5 项作业」。</summary>
     public string ReplayBanner => _replay.BannerText;
@@ -187,18 +206,24 @@ public partial class BoardPageViewModel : ViewModelBase
 
     private void OnBasicSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // 只有点击穿透会影响这条提示（它决定标题栏右上角那一整块显示不显示）。
+        // 点击穿透影响两处：空板提示的指向（标题栏那一整块会隐藏），以及作业条右侧的编辑/删除按钮。
         if (e.PropertyName is null or nameof(BasicSettingsConfig.ClickThrough))
+        {
             OnPropertyChanged(nameof(EmptyHint));
+            RebuildNotes();
+        }
     }
 
     private void OnBoardSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // 排序方式、默认字号、默认颜色都会影响列表内容：前两个改排序，后两个改渲染出来的样子。
+        // 排序方式、默认字号、默认颜色、科目标题与作业条小字的字号都会影响列表内容：
+        // 前者改排序，其余几个改渲染出来的样子（字号记在列表项上，所以只能重建）。
         if (e.PropertyName is null
             or nameof(BoardSettingsConfig.SortMode)
             or nameof(BoardSettingsConfig.DefaultContentFontSize)
-            or nameof(BoardSettingsConfig.DefaultContentColor))
+            or nameof(BoardSettingsConfig.DefaultContentColor)
+            or nameof(BoardSettingsConfig.SubjectFontSize)
+            or nameof(BoardSettingsConfig.NoteMetaFontSize))
         {
             RebuildNotes();
         }
@@ -213,7 +238,9 @@ public partial class BoardPageViewModel : ViewModelBase
         if (e.PropertyName is null or nameof(BoardSettingsConfig.ConfirmBeforeDelete))
             OnPropertyChanged(nameof(ConfirmBeforeDelete));
 
-        if (e.PropertyName is null or nameof(BoardSettingsConfig.BlockMinWidth))
+        if (e.PropertyName is null
+            or nameof(BoardSettingsConfig.BlockMinWidth)
+            or nameof(BoardSettingsConfig.BlockWidthAdaptive))
         {
             OnPropertyChanged(nameof(BlockMinWidth));
             OnPropertyChanged(nameof(BlockMaxWidth));
@@ -243,13 +270,14 @@ public partial class BoardPageViewModel : ViewModelBase
 
         SubjectGroups.Clear();
         foreach (var group in BoardNoteGrouping.Group(
-                     visible, Config.BoardSettings.SortMode, _boardService.SubjectOrder))
+                     visible, Config.BoardSettings.SortMode, _boardService.SubjectOrder, _boardService.Subjects))
         {
             SubjectGroups.Add(new BoardSubjectItem(
                 group.Key,
                 group.Key.Length > 0 ? group.Key : CR.Board_Uncategorized,
                 group.Select(BuildItem).ToList(),
-                !_replay.IsActive));
+                !_replay.IsActive,
+                SubjectFontSize));
         }
 
         OnPropertyChanged(nameof(HasNotes));
@@ -257,23 +285,6 @@ public partial class BoardPageViewModel : ViewModelBase
 
     private BoardNoteItem BuildItem(BoardNote note)
     {
-        var type = _boardService.FindType(note.TypeId);
-        var details = new List<string>();
-        if (type is not null) details.Add(type.DisplayName);
-
-        if (type is not null)
-        {
-            foreach (var field in type.Fields)
-            {
-                if (!note.Values.TryGetValue(field.Id.ToString(), out var raw) || string.IsNullOrWhiteSpace(raw))
-                    continue;
-
-                var value = FormatFieldValue(field.Kind, raw.Trim());
-                // 页数区间的值自带 P 前缀，再加字段名就啰嗦了。
-                details.Add(field.Kind == BoardFieldKind.PageRange ? value : $"{field.DisplayLabel} {value}");
-            }
-        }
-
         // 截止日期按「今天」算文案。跨零点后不主动刷新，但任何一次数据/设置变动都会重建列表，
         // 真放着不管一整夜也就是「今天截止」晚一天变成「已过期 1 天」。
         var today = DateOnly.FromDateTime(DateTime.Now);
@@ -282,33 +293,13 @@ public partial class BoardPageViewModel : ViewModelBase
 
         return new BoardNoteItem(
             note,
-            string.Join(" · ", details),
             // 内容是真源（HTML 片段），默认字号/颜色在控件里逐段补成行内样式，这里只把设置值传下去。
             note.Content?.Trim() ?? string.Empty,
             ContentDefaultFontSize,
             ContentDefaultColor,
-            !_replay.IsActive,
+            NoteMetaFontSize,
+            CanModifyNotes,
             dueText,
             isOverdue);
-    }
-
-    /// <summary>把原始值文本按字段类型格式化成给人看的样子。</summary>
-    private static string FormatFieldValue(BoardFieldKind kind, string raw)
-    {
-        if (kind != BoardFieldKind.PageRange)
-            return raw;
-
-        var separator = raw.IndexOf('-');
-        if (separator < 0)
-            return raw;
-
-        var from = raw[..separator];
-        var to = raw[(separator + 1)..];
-
-        // 只填了一边就只显示那一边，免得出现「P–15」这种半截东西。
-        if (from.Length == 0 || to.Length == 0)
-            return from.Length > 0 ? from : to;
-
-        return string.Format(CultureInfo.CurrentCulture, CR.Board_PageRangeFormat, from, to);
     }
 }

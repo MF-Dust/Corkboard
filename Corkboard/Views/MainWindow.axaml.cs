@@ -35,6 +35,10 @@ namespace Corkboard.Views;
 ///         启动时恢复；屏幕尺寸变过就按工作区比例把位置等比缩过去（见 <see cref="RestorePosition" />）。
 ///         设置窗口不记位置：它固定居中显示。
 ///     </para>
+///     <para>
+///         不透明度写的是整窗 alpha，所以壳内弹层或内容对话框打开期间要让位给 1
+///         （见 <see cref="ApplyWindowOpacity" />）：否则弹层与对话框自己也会变透明。
+///     </para>
 /// </summary>
 public partial class MainWindow : FAAppWindow
 {
@@ -52,6 +56,14 @@ public partial class MainWindow : FAAppWindow
     private bool _hasNormalPosition;
 
     private BasicSettingsConfig? _watchedBasicSettings;
+    private PageOverlayService? _watchedOverlay;
+
+    /// <summary>
+    ///     正在显示的内容对话框数量（由 <see cref="ModalOpacityScope" /> 增减）。
+    ///     大于 0、或者壳内弹层开着时，窗口不透明度让位给 1——见 <see cref="ApplyWindowOpacity" />。
+    /// </summary>
+    private int _modalSurfaceCount;
+
     private bool _hasBeenShown;
     private bool _isWindowSizeSavePending;
     private bool _isPinnedToDesktop;
@@ -135,6 +147,12 @@ public partial class MainWindow : FAAppWindow
             _watchedBasicSettings.PropertyChanged += OnBasicSettingsChanged;
         }
 
+        if (IAppHost.TryGetService<PageOverlayService>() is { } overlay)
+        {
+            _watchedOverlay = overlay;
+            _watchedOverlay.PropertyChanged += OnOverlayChanged;
+        }
+
         ApplyPinToDesktop();
         ApplyClickThrough();
         ApplyWindowOpacity();
@@ -159,6 +177,32 @@ public partial class MainWindow : FAAppWindow
 
         if (e.PropertyName is null or nameof(BasicSettingsConfig.MainWindowOpacity))
             ApplyWindowOpacity();
+    }
+
+    /// <summary>壳内弹层开关时重算不透明度：弹层自己也压在同一层窗口 alpha 下，一样会变透明。</summary>
+    private void OnOverlayChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is null or nameof(PageOverlayService.IsOpen))
+            ApplyWindowOpacity();
+    }
+
+    /// <summary>
+    ///     盖在窗口上的面（内容对话框）开始显示：不透明度让位给 1。
+    ///     与 <see cref="ExitModalSurface" /> 配对，弹层那个面由 <see cref="OnOverlayChanged" /> 自己盯。
+    /// </summary>
+    public void EnterModalSurface()
+    {
+        _modalSurfaceCount++;
+        ApplyWindowOpacity();
+    }
+
+    /// <summary>盖在窗口上的面收掉了：还回配置里的不透明度。</summary>
+    public void ExitModalSurface()
+    {
+        if (_modalSurfaceCount > 0)
+            _modalSurfaceCount--;
+
+        ApplyWindowOpacity();
     }
 
     #region 窗口尺寸记忆
@@ -509,6 +553,7 @@ public partial class MainWindow : FAAppWindow
 
         ReleaseDesktopBottom();
         ReleaseBasicSettingsWatcher();
+        ReleaseOverlayWatcher();
     }
 
     private void ApplyPinToDesktop()
@@ -643,13 +688,22 @@ public partial class MainWindow : FAAppWindow
     /// <summary>
     ///     主窗口不透明度：配置里是 0–1 的标量（1 完全不透明），由平台写进原生窗口。
     ///     平台自己会夹一个下限，这里不再重复夹。
+    ///     <para>
+    ///         壳内弹层或内容对话框开着时一律用 1：alpha 是整窗乘算的，弹层/对话框跟着一起变透明，
+    ///         底下与桌面就透上来了（用户反馈「框的底是透明的」）。关掉之后自动回到配置值。
+    ///     </para>
     /// </summary>
     private void ApplyWindowOpacity()
     {
         if (!_isMainScope || IAppHost.TryGetService<MainConfigHandler>() is not { } handler)
             return;
 
-        ApplyWindowFeature(WindowFeatures.WindowOpacity, enabled: true, opacity: handler.Data.Basic.MainWindowOpacity);
+        // UseSeparateWindow 为真时弹层活在独立窗口里，跟本窗口的 alpha 无关，不用让位。
+        var hasModalSurface = _modalSurfaceCount > 0
+                              || _watchedOverlay is { IsOpen: true, UseSeparateWindow: false };
+        var opacity = hasModalSurface ? 1.0 : handler.Data.Basic.MainWindowOpacity;
+
+        ApplyWindowFeature(WindowFeatures.WindowOpacity, enabled: true, opacity: opacity);
     }
 
     /// <summary>
@@ -725,6 +779,15 @@ public partial class MainWindow : FAAppWindow
 
         _watchedBasicSettings.PropertyChanged -= OnBasicSettingsChanged;
         _watchedBasicSettings = null;
+    }
+
+    private void ReleaseOverlayWatcher()
+    {
+        if (_watchedOverlay is null)
+            return;
+
+        _watchedOverlay.PropertyChanged -= OnOverlayChanged;
+        _watchedOverlay = null;
     }
 
     private void InitializeComponent()

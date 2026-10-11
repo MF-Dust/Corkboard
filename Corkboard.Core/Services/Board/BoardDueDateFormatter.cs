@@ -19,7 +19,14 @@ public static class BoardDueDateFormatter
     /// <summary>离 <paramref name="today" /> 还有几天；负数表示已经过了几天。</summary>
     public static int DaysLeft(DateOnly due, DateOnly today) => due.DayNumber - today.DayNumber;
 
-    /// <summary>这条作业的截止日期是不是已经过去了。</summary>
+    /// <summary>
+    ///     这条作业的截止日期是不是已经过去了——界面措辞的判据：当天还说「今天截止」，
+    ///     过了当天才说「已过期 N 天」。
+    ///     <para>
+    ///         ⚠️ 自动清理走的是 <see cref="BoardExpiryPolicy" />，那个<b>当天就算过期</b>（早一天动手）：
+    ///         清理看的是「这一天到没到」，界面看的是「期限过没过」。两条判据故意不同，别把这边改成 <c>&lt;=</c>。
+    ///     </para>
+    /// </summary>
     public static bool IsOverdue(DateOnly due, DateOnly today) => due < today;
 
     /// <summary>截止日期的显示文案。</summary>

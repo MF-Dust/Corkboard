@@ -122,6 +122,8 @@ public partial class BoardPage : UserControl
                 CloseButtonText = CR.Common_Cancel
             };
 
+            // 对话框显示期间让窗口不透明：整窗 alpha 会把对话框一起变透明（见 ModalOpacityScope）。
+            using var modalOpacity = ModalOpacityScope.Begin(this);
             if (await dialog.ShowAsync(topLevel) != FAContentDialogResult.Primary)
                 return;
         }

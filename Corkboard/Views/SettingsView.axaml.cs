@@ -15,6 +15,7 @@ using Corkboard.Core.Enums;
 using Corkboard.Core.Extensions;
 using Corkboard.Core.Services;
 using Corkboard.Platforms.Abstractions;
+using Corkboard.Services.Ui;
 using Corkboard.ViewModels;
 using CR = Corkboard.Core.Langs.Common.Resources;
 using LR = Corkboard.Langs.SettingsView.Resources;
@@ -254,6 +255,9 @@ public partial class SettingsView : ContentPage, IFANavigationPageFactory
         _isShowingRestartDialog = true;
         try
         {
+            // 对话框显示期间让窗口不透明：整窗 alpha 会把对话框一起变透明（见 ModalOpacityScope）。
+            // 这个窗口不登记不透明度能力，所以这里实际上是空操作，写上是为了不漏掉任何一处对话框。
+            using var modalOpacity = ModalOpacityScope.Begin(this);
             var result = await new FAContentDialog
             {
                 Title = LR.SettingsView_NeedsRestarting,

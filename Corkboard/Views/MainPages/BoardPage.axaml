@@ -39,6 +39,7 @@
                         </Border>
                         <TextBlock Grid.Column="1"
                                    FontWeight="Bold"
+                                   FontSize="{Binding SubjectFontSize}"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Center"
                                    Text="{Binding Subject}" />
@@ -51,15 +52,15 @@
                             <DataTemplate DataType="vm:BoardNoteItem">
                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                                     <StackPanel Spacing="2">
-                                        <TextBlock Classes="caption" IsVisible="{Binding HasDetail}"
-                                                   TextWrapping="Wrap" Text="{Binding Detail}" />
                                         <!--
                                             截止日期：没设过就整行不显示。过期那一条换成系统的警示色
                                             （类名跟着 IsOverdue 开关），这是卡片上唯一会自己变色的文字。
+                                            字号来自设置里的「作业条小字字号」，样式里不再写死。
                                         -->
                                         <TextBlock Classes="note-due"
                                                    Classes.overdue="{Binding IsOverdue}"
                                                    IsVisible="{Binding HasDueText}"
+                                                   FontSize="{Binding MetaFontSize}"
                                                    TextWrapping="Wrap"
                                                    Text="{Binding DueText}" />
                                         <!--
@@ -75,7 +76,7 @@
                                                                 DefaultContentFontSize="{Binding ContentFontSize}"
                                                                 DefaultContentColor="{Binding ContentColor}" />
                                     </StackPanel>
-                                    <!-- 回放期间列表项自带 CanModify=false，两个按钮随之隐藏。 -->
+                                    <!-- 回放期间与点击穿透锁住窗口时列表项自带 CanModify=false，两个按钮随之隐藏。 -->
                                     <Button Grid.Column="1" VerticalAlignment="Top"
                                             Background="Transparent" BorderThickness="0" Padding="6"
                                             FontFamily="{DynamicResource FluentSystemIconsResizeable}"
@@ -156,12 +157,12 @@
         </Style>
 
         <!--
-            作业条上的截止日期。字号自己写死，不叠 caption 类：两个类都设 Foreground 时谁赢
-            取决于样式来源的顺序，不如让这一行自己说清楚。过期换成系统警示色——「该交了」必须
+            作业条上的截止日期。不叠 caption 类：两个类都设 Foreground 时谁赢取决于样式来源的顺序，
+            不如让这一行自己说清楚。**字号也不写在这里**——它来自设置里的「作业条小字字号」，
+            由模板上的局部绑定给（局部值比样式优先级高）。过期换成系统警示色——「该交了」必须
             一眼看见；万一主题里没有这个画刷，Foreground 退回继承色，文字照样看得见。
         -->
         <Style Selector="TextBlock.note-due">
-            <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         </Style>
         <Style Selector="TextBlock.note-due.overdue">

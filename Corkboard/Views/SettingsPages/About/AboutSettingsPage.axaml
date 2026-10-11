@@ -11,6 +11,12 @@
              x:DataType="vm:AboutSettingsPageViewModel">
     <ScrollViewer>
         <StackPanel Classes="page-container">
+            <!-- 页标题画在 page-container 里：它才和设置卡同宽、同左边缘，并随卡片一起滚动。 -->
+            <TextBlock Margin="0 4 0 0"
+                       FontWeight="Normal"
+                       Text="{x:Static core:Resources.Settings_About_Title}"
+                       Theme="{StaticResource TitleTextBlockStyle}" />
+
             <!-- 应用信息：名字、简介、版本、协议、常用链接。 -->
             <fa:FASettingsExpander Header="{Binding AppName}"
                                    Description="{x:Static core:Resources.Settings_About_Description}"

@@ -65,6 +65,27 @@ public class BoardNoteGroupingTests
     }
 
     [Fact]
+    public void Group_SubjectModeFollowsConfiguredSubjectOrder()
+    {
+        var notes = new[] { Note("英语", "一"), Note("数学", "二"), Note("语文", "三") };
+
+        // 「按科目排序」用的是设置里那份科目清单的先后，不是按名字的字典序。
+        var groups = BoardNoteGrouping.Group(notes, BoardSortMode.Subject, null, ["语文", "数学", "英语"]);
+
+        Assert.Equal(["语文", "数学", "英语"], groups.Select(group => group.Key));
+    }
+
+    [Fact]
+    public void Group_SubjectModePutsSubjectsMissingFromSettingsAtTheEnd()
+    {
+        var notes = new[] { Note("体育", "一"), Note("数学", "二"), Note("语文", "三") };
+
+        var groups = BoardNoteGrouping.Group(notes, BoardSortMode.Subject, null, ["语文", "数学"]);
+
+        Assert.Equal(["语文", "数学", "体育"], groups.Select(group => group.Key));
+    }
+
+    [Fact]
     public void Group_ManualModeOrdersGroupsByStoredSubjectOrder()
     {
         var notes = new[] { Note("语文", "一"), Note("数学", "二"), Note("英语", "三") };

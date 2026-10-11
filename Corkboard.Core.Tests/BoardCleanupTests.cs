@@ -90,8 +90,8 @@ public class BoardCleanupTests : IDisposable
     // ── 判定：只看截止日期 ──────────────────────────────────────────────────
 
     /// <summary>
-    ///     过期只有一条规则：<b>过了截止日期</b>。没填截止日期的作业不管建了多久都不会被清掉，
-    ///     到期当天也不算过期（第二天才算）。
+    ///     过期只有一条规则：<b>到了截止日期就算过期</b>（当天就算，不是第二天）。
+    ///     没填截止日期的作业不管建了多久都不会被清掉。
     /// </summary>
     [Fact]
     public void Expiry_OnlyLooksAtTheDueDate()
@@ -104,26 +104,31 @@ public class BoardCleanupTests : IDisposable
 
         Assert.Null(BoardExpiryPolicy.ExpiryDate(ancient));
         Assert.False(BoardExpiryPolicy.IsExpired(ancient, Today));
-        Assert.False(BoardExpiryPolicy.IsExpired(dueToday, Today));
+        Assert.True(BoardExpiryPolicy.IsExpired(dueToday, Today));
         Assert.False(BoardExpiryPolicy.IsExpired(dueTomorrow, Today));
         Assert.True(BoardExpiryPolicy.IsExpired(dueYesterday, Today));
         Assert.True(BoardExpiryPolicy.IsExpired(dueLongAgo, Today));
     }
 
     /// <summary>
-    ///     清掉的判据与作业条上那行「过期 N 天」同源：界面说已过期的，清理才会动手，
-    ///     两边各写一套判断迟早会各说各话。
+    ///     清理判据比界面那行「今天截止 / 过期 N 天」早一天：界面当天还说「今天截止」，
+    ///     清理在当天就算过期（用户要的是「截止时刻到了之后它就算没了」）。
+    ///     两条判据故意不同，但方向必须一致——界面说已过期的，清理一定也认为过期。
     /// </summary>
     [Fact]
-    public void Expiry_UsesTheSameJudgeAsTheCardLabel()
+    public void Expiry_StartsOnTheDueDateEvenThoughTheCardLabelWaitsOneMoreDay()
     {
-        foreach (var offset in new[] { -3, -1, 0, 1, 7 })
+        foreach (var offset in new[] { -3, -1, 1, 7 })
         {
             var due = Today.AddDays(offset);
             var note = new BoardNote { DueDate = due };
 
             Assert.Equal(BoardDueDateFormatter.IsOverdue(due, Today), BoardExpiryPolicy.IsExpired(note, Today));
         }
+
+        // 当天：界面还说「今天截止」，清理已经把它算过期了。
+        Assert.False(BoardDueDateFormatter.IsOverdue(Today, Today));
+        Assert.True(BoardExpiryPolicy.IsExpired(new BoardNote { DueDate = Today }, Today));
     }
 
     /// <summary>自动清理默认开着（用户明确要的默认值），设置页第一眼看到的就是已启用。</summary>
@@ -194,7 +199,7 @@ public class BoardCleanupTests : IDisposable
     // ── 清理：从板子上拿掉，数据原地不动 ──────────────────────────────────────
 
     /// <summary>
-    ///     只要截止日期过了就从板子上清掉——不管作业是哪天建的，也不管现在是几点
+    ///     到了截止日期就从板子上清掉——不管作业是哪天建的，也不管现在是几点
     ///     （用户点「立即清理」本来就该立刻见效）；没填截止日期的作业一条都不动。
     /// </summary>
     [Fact]
@@ -213,13 +218,14 @@ public class BoardCleanupTests : IDisposable
 
         // 清掉的只是「板子上看不见」：作业仍旧留在内存集合里——不留在集合里的话，
         // 下一次落盘会把这条日期文件整个重写成没有它的样子，那就真没了。
-        Assert.Equal(2, result.Cleaned);
+        Assert.Equal(3, result.Cleaned);
         Assert.Equal(5, board.Notes.Count);
         Assert.NotNull(board.Notes.Single(note => note.Id == overdueLong.Id).CleanedAt);
         Assert.NotNull(board.Notes.Single(note => note.Id == overdueYesterday.Id).CleanedAt);
+        Assert.NotNull(board.Notes.Single(note => note.Id == dueToday.Id).CleanedAt);
         Assert.False(board.Notes.Single(note => note.Id == overdueLong.Id).IsOnBoard);
         Assert.False(board.Notes.Single(note => note.Id == overdueYesterday.Id).IsOnBoard);
-        Assert.True(board.Notes.Single(note => note.Id == dueToday.Id).IsOnBoard);
+        Assert.False(board.Notes.Single(note => note.Id == dueToday.Id).IsOnBoard);
         Assert.True(board.Notes.Single(note => note.Id == dueLater.Id).IsOnBoard);
         Assert.True(board.Notes.Single(note => note.Id == withoutDueDate.Id).IsOnBoard);
 
@@ -232,7 +238,8 @@ public class BoardCleanupTests : IDisposable
         var reloaded = CreateStore().LoadAll();
         Assert.Equal(5, reloaded.Count);
         Assert.NotNull(reloaded.Single(note => note.Id == overdueLong.Id).CleanedAt);
-        Assert.Null(reloaded.Single(note => note.Id == dueToday.Id).CleanedAt);
+        Assert.NotNull(reloaded.Single(note => note.Id == dueToday.Id).CleanedAt);
+        Assert.Null(reloaded.Single(note => note.Id == dueLater.Id).CleanedAt);
     }
 
     /// <summary>「立即清理」不看时刻：清理时刻设在 23:00，上午手动跑一样把过了截止日期的清掉。</summary>

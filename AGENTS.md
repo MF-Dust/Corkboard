@@ -9,7 +9,7 @@
 - 约定冲突时，`docs/project_rules.md` 是最终依据。
 -->
 
-**Last Update:** 2026-10（主界面去掉侧边导航栏，只承载默认主页面；设置界面保留导航栏、顶部「收纳」与返回按钮（返回箭头改由 Core 样式模板画），设置项改为平铺、不再分组；设置页改设置卡；应用字体换成随包分发的 MiSans；作业板：作业类型 + 字段值输入（数字用 NumericUpDown 自带步进键，不再自绘数字小键盘）、**取消作业名与完成勾选**、**同科目合并成一个区块**、作业内容多行可拖宽拖高（布置作业卡片有最小宽度／最大宽度／最大高度，上限按**看得见的宿主**算：壳内弹层取窗口内容区、只占其 70%，置底形态退回屏幕工作区，超了卡片内部滚动）、**弹层卡片整张都是拖动面**（按住卡片上输入控件以外的地方都能整张拖走，不再有抓手图标；位移夹在宿主里，卡片尺寸一变就重夹，置底形态下改拖独立窗口）、自绘页面级弹层、纯文字便签、三种排布（**排布切换在主页面顶部已取消，改到「设置 → 作业板」下拉框里选**；成排布局里每个区块各自定高，不跟着同行最高的那块变长）、排序与删除确认、名称/科目/类型可配；**作业内容是所见即所得富文本**（第三方 `AvaloniaRichEditor`，由 Core 的 `RichTextBlock` 承载，落盘成 HTML 片段；旧的 Markdown 渲染管线与相关单测已整体删除，旧作业由 `LegacyBoardContentConverter` 一次性迁移），可以给选中的字/段单独改颜色与字号，默认字号与默认颜色在「设置 → 作业板 → 内容默认样式」里配；**格式工具栏常驻在编辑区正上方**（库自带的 `RichEditorToolbar`，`Target` 在 code-behind 里指向编辑控件，文案由 Core 的 `RichTextLocalization` 跟着界面语言切），加粗/斜体/下划线/删除线、文字颜色、高亮、列表、缩进、行距、对齐、字号/字体/段落样式与插入表格图片都在上面，点一下直接对当前选区生效；**作业内容只有一个框**：就是一个始终可编辑的富文本编辑器，没有「原文态/效果态」切换；**作业数据移出 `data/config/`**，按创建日期归档到 `data/board/<年>/<月>/<日>/notes.json`；**时空回放**放在主界面标题栏右上角，连点两次才进入、超时自动退回，没作业时不显示入口；Debug 构建在壳的左下角加版本水印，照上游 SecRandom-C 的 `DevelopmentBuildAdorner`；外观设置补齐主题模式（跟随系统 / 浅色 / 深色）与主题色（跟随系统 / 自定义）；**基础设置新增主窗口不透明度（滑杆，落到原生窗口）与点击穿透**，主界面标题栏右上角「布置作业」左侧加设置按钮（打开设置窗口）；**基础设置新增「右下角布置作业按钮」**，打开后主窗口右下角浮一颗圆角加号（`MainView` 里叠在内容之上的一颗按钮，弹层遮罩盖得住它，回放/点击穿透时随其它入口一起隐藏，点一下开出布置作业表单）；**设置页「关于」页复刻上游 SecRandom-C**，改应用信息／作者／版本信息三张卡，外部链接经新服务 `IExternalLauncher`（`Corkboard/Services/Desktop/`）交给系统默认程序打开）；**作业板新增「自动清理过期作业」**（设置 → 作业板：开关（默认开启）+ 每天/每周某天某时刻，默认 4:00，用 `TimePicker`），到点只给**过了截止日期**的作业打上 `CleanedAt` 标记、从主页面拿掉（数据原地不动、不搬目录、不删文件，回放里照旧看得到），**判定只看截止日期**（没填截止日期的作业永远不会被自动清掉，到期当天也不算、第二天才算）；卡头的「立即清理」不看时刻、点一下当场把过了截止日期的清掉；**作业新增可选「截止日期」**（`BoardNote.DueDate`，布置作业表单里用 Avalonia 自带的 `CalendarDatePicker`），卡片上按「今天 / 明天 / yyyy-MM-dd / 过期 N 天」显示，过期标红）
+**Last Update:** 2026-10（主界面去掉侧边导航栏，只承载默认主页面；设置界面保留导航栏、顶部「收纳」与返回按钮（返回箭头改由 Core 样式模板画），设置项改为平铺、不再分组；设置页改设置卡；应用字体换成随包分发的 MiSans；作业板：**取消作业名与完成勾选**、**同科目合并成一个区块**、作业内容多行可拖宽拖高（布置作业卡片有最小宽度／最大宽度／最大高度，上限按**看得见的宿主**算：壳内弹层取窗口内容区、只占其 70%，置底形态退回屏幕工作区，超了卡片内部滚动）、**弹层卡片整张都是拖动面**（按住卡片上输入控件以外的地方都能整张拖走，不再有抓手图标；位移夹在宿主里，卡片尺寸一变就重夹，置底形态下改拖独立窗口）、自绘页面级弹层、纯文字便签、三种排布（**排布切换在主页面顶部已取消，改到「设置 → 作业板」下拉框里选**；成排布局里每个区块各自定高，不跟着同行最高的那块变长）、排序与删除确认、名称/科目可配（**作业类型与字段模板已删除**：便签上只有内容、科目、截止日期三样，旧数据里的 `types`/`type_id`/`values` 静默忽略）；**作业内容是所见即所得富文本**（第三方 `AvaloniaRichEditor`，由 Core 的 `RichTextBlock` 承载，落盘成 HTML 片段；旧的 Markdown 渲染管线与相关单测已整体删除，旧作业由 `LegacyBoardContentConverter` 一次性迁移），可以给选中的字/段单独改颜色与字号，默认字号与默认颜色在「设置 → 作业板 → 内容默认样式」里配；**格式工具栏常驻在编辑区正上方**（库自带的 `RichEditorToolbar`，`Target` 在 code-behind 里指向编辑控件，文案由 Core 的 `RichTextLocalization` 跟着界面语言切），加粗/斜体/下划线/删除线、文字颜色、高亮、列表、缩进、行距、对齐、字号/字体/段落样式与插入表格图片都在上面，点一下直接对当前选区生效；**作业内容只有一个框**：就是一个始终可编辑的富文本编辑器，没有「原文态/效果态」切换；**作业数据移出 `data/config/`**，按创建日期归档到 `data/board/<年>/<月>/<日>/notes.json`；**时空回放**放在主界面标题栏右上角，连点两次才进入、超时自动退回，没作业时不显示入口；Debug 构建在壳的左下角加版本水印，照上游 SecRandom-C 的 `DevelopmentBuildAdorner`；外观设置补齐主题模式（跟随系统 / 浅色 / 深色）与主题色（跟随系统 / 自定义）；**基础设置新增主窗口不透明度（滑杆，落到原生窗口）与点击穿透**，主界面标题栏右上角「布置作业」左侧加设置按钮（打开设置窗口）；**基础设置新增「右下角布置作业按钮」**，打开后主窗口右下角浮一颗圆角加号（`MainView` 里叠在内容之上的一颗按钮，弹层遮罩盖得住它，回放/点击穿透时随其它入口一起隐藏，点一下开出布置作业表单）；**设置页「关于」页复刻上游 SecRandom-C**，改应用信息／作者／版本信息三张卡，外部链接经新服务 `IExternalLauncher`（`Corkboard/Services/Desktop/`）交给系统默认程序打开）；**作业板新增「自动清理过期作业」**（设置 → 作业板：开关（默认开启）+ 每天/每周某天某时刻，默认 4:00，用 `TimePicker`），到点只给**过了截止日期**的作业打上 `CleanedAt` 标记、从主页面拿掉（数据原地不动、不搬目录、不删文件，回放里照旧看得到），**判定只看截止日期**（没填截止日期的作业永远不会被自动清掉，到了截止日期当天就算过期）；卡头的「立即清理」不看时刻、点一下当场把到了截止日期的清掉；**作业新增可选「截止日期」**（`BoardNote.DueDate`，布置作业表单里用 Avalonia 自带的 `CalendarDatePicker`），卡片上按「今天 / 明天 / yyyy-MM-dd / 过期 N 天」显示，过期标红）；**设置新增「账号」页**（登录 SECTL 组织账号：OAuth 2.0 PKCE 跳系统浏览器 + loopback 回调，头像缺失时显示昵称首字（`Corkboard.Core.Helpers.AvatarInitialResolver`），凭据失效提示「重新登录」，退出先弹确认框再清本机凭据，页面订阅 `ISectlAuthService.StateChanged` 并在 `Unloaded` 里 `Detach`）
 
 ## 这是什么
 
@@ -107,6 +107,10 @@ public partial class BoardSettingsConfig : ObservableObject
 ### 设置的硬规矩
 
 - **设置文案不加句号**：名称、简介、开关说明，中文不用「。」、英文不用「.」，短句收尾。
+- **简介要像人说的话，不是标签**：一句话说清「这一项做什么、改了会怎样」，中文一条 10–21 个字
+  （英文同量级的一句话），口语、具体、一条一件事。**别压成两三个词的标签**（「被别的窗口盖住」
+  「跟着窗口变宽」这种读起来像字段名，用户看不懂），也别写成并列堆叠的功能清单；长短语由
+  `FASettingsExpander` 的 `Description` 一行承载，放不下就先砍修饰、不要再加第二句。
 - **不要直接双向绑 `TextBox.Text` 到配置**：`ConfigHandlerBase` 每次属性变化都会落一次盘（没有防抖），
   而 Avalonia 的 `UpdateSourceTrigger` 默认是 `PropertyChanged`——每敲一个字符就写一遍 `settings.json`。
   改成 VM 里的草稿属性 + 显式提交（回车 / 页面 `Unloaded`），范例见 `BoardSettingsPageViewModel.CommitBoardName`。
@@ -198,6 +202,13 @@ public partial class BoardSettingsConfig : ObservableObject
     ⚠️ 这颗按钮与浮层都要标 `Classes="rte-keep-theme"`：`RichTextToolbarTheme` 是「颜色值精确匹配」换库里
     写死的浅色，我们自己控件的正常前景色（暗色主题下的纯白）正好命中那张表，不排除就会在暗色下被换成
     深底，字看不见（见 `RichTextToolbarTheme.KeepThemeClass` / `IsKeptSubtree`）。
+    ⚠️ **颜色匹配必须带上「属性角色」**（`RichTextToolbarTheme.Role`：底色 / 墨色 / 描边）：同一个颜色
+    在不同属性上含义不同——库写死的白是「控件底色」，而暗色主题里的白正好是主文字色
+    （`TextFillColorPrimaryBrush`）。不分角色地按颜色换，会把主题自己的白前景当成库的白底，
+    换成 `ControlFillColorDefaultBrush`（暗色下只有 6% 白），表现就是**深色主题下工具栏图标与下拉文字
+    几乎看不见**（用户反馈过一次）。白色条目因此只对底色生效，`#3C4043`/黑/灰那些墨色条目只对墨色生效，
+    描边条目只对描边生效；`Shape` 的 `Fill`/`Stroke` 两种角色都认（实心层用 `Fill` 画墨色、线条层用
+    `Stroke`）。**别把 `Role` 参数省掉退回按颜色一刀切**。
   - 编辑器上 `ShowFormattingMenu="False"`（有常驻工具栏就不开右键菜单）、
     `ShowPageBoundaries="False"` / `ShowPageNumbers="False"`（便签不画 A4 纸）；外面必须套 `ScrollViewer`
     并给宽度约束——库控件没有内部滚动条且 `ClipToBounds=False`，不给宽度会按整张纸宽排、内容过高画到边界外。
@@ -237,9 +248,16 @@ public partial class BoardSettingsConfig : ObservableObject
   - Windows 上两样共用 `WS_EX_LAYERED`：**只设样式不调 `SetLayeredWindowAttributes`，
     窗口会整体不显示**，所以 `TrySetExtendedStyles` 与 `TrySetWindowOpacity` 都要按同一份
     alpha 补一次分层属性；不透明度下限在平台侧兜底（设置页滑杆下限更高，20%）。
-  - 点击穿透开着时主窗口一个控件都点不动，所以**标题栏右上角整块隐藏**
-    （`MainView` 右侧动作区 `IsVisible` 绑 `!ViewModel.Config.Basic.ClickThrough`），
-    不留一排点不动的按钮误导用户；设置只能从托盘菜单打开。
+  - 点击穿透开着时主窗口一个控件都点不动，所以**凡是「点了才生效」的入口都要一起隐藏**，
+    不留点不动的控件误导用户：
+    - 标题栏右上角整块隐藏（`MainView` 右侧动作区 `IsVisible` 绑
+      `!ViewModel.Config.Basic.ClickThrough`）；设置只能从托盘菜单打开。
+    - 作业条右侧的编辑/删除按钮跟着隐藏（`BoardPageViewModel.CanModifyNotes`
+      = `!_replay.IsActive && !Config.Basic.ClickThrough`，经 `BoardNoteItem.CanModify` 绑到按钮的
+      `IsVisible`；`ClickThrough` 变化要 `RebuildNotes()`）。回放期间同理。
+    - 右下角布置作业浮标也要隐藏（`MainViewModel.ShowCornerAssignButton`
+      = `Config.Basic.ShowCornerAssignButton && !Config.Basic.ClickThrough`），**别直接绑配置里的
+      `ShowCornerAssignButton`**。
   - **锁定徽标必须放在主窗口之外的独立顶层窗口**（`Corkboard/Views/ClickThroughLockWindow.axaml`，
     由 `MainWindow.SyncLockBadge` 管理）：点击穿透是整窗的，画在主窗口里的「开锁」按钮自己也点不动，
     而需求就是「穿透开着时这颗按钮仍然可点」。它按主窗口标题栏最右上角实时摆位
@@ -256,6 +274,14 @@ public partial class BoardSettingsConfig : ObservableObject
     漏掉这一环的后果是：配置写着穿透/不透明度/置底，界面也这么显示，窗口实际已经全部失效。
   - 不透明度滑杆与取色器同一套做法：绑 VM 草稿 + 400ms 防抖，离开页面 `FlushOpacityDraft()`，
     **不要直接双向绑配置**。
+  - ⚠️ **不透明度是整窗 alpha，弹层/对话框打开期间必须让位给 1**：`main_window_opacity` 由平台写进
+    原生分层窗口，整窗一起乘算，壳内弹层（`Border.sheet`）与 `FAContentDialog` **自己也会变透明**，
+    底下便签与桌面就透上来了（用户反馈「框的底是透明的」）。窗内画什么都不可能让那个面局部不透明，
+    所以 `MainWindow.ApplyWindowOpacity()` 在「有弹层或对话框开着」时一律用 1，关闭后自动回配置值：
+    弹层靠订阅 `PageOverlayService.IsOpen`（`UseSeparateWindow` 为真时弹层在独立窗口里，不用让位），
+    对话框靠 `ModalOpacityScope.Begin(this)`（`using var` 包住 `ShowAsync`，三处对话框都写上了）。
+    另外 `Border.sheet` 的底色必须用**实体**笔刷（`SolidBackgroundFillColorQuarternaryBrush`），
+    Fluent 的 `CardBackgroundFillColorDefaultBrush` 是半透明色、底下的字会隐隐透上来。
 - ⚠️ **设置界面标题栏右侧放控件，必须先让出系统按钮那一带**：`FAAppWindow` 的最小化/最大化/关闭按钮
   画在标题栏右端、盖在页面内容**上面**，而本窗口 `ExtendsContentIntoTitleBar`，页面内容一直铺到标题栏底下，
   靠右的控件会被那三个按钮压住（表现为按钮和 × / 方块叠在一起）。这一带的宽度**不许写死常量**
@@ -265,11 +291,19 @@ public partial class BoardSettingsConfig : ObservableObject
   既不被吞掉、也不被推到最左边。以后往设置标题栏右侧加控件，放进 `TitleBarActionArea` 即可。
 - **导航项来自注册表**：`PagesRegistryService` 的集合经 `PageItemsExtensions.ToNavigationViewItems`
   转成设置界面的导航项，按 `PageLocation.Top` / `Bottom` 分到上半区与底部。
+  要把某一页沉到页脚（「关于」就是这么放的），在它的 `PageInfo` 上把 location 传 `PageLocation.Bottom`
+  （特性参数是位置参数，第三个 `groupId` 传 `null`）；`SettingsView` 的 `FANavigationView` 已经绑好
+  `FooterMenuItemsSource`，漏绑就会出现「注册了却看不见」。
   运行期不要增删导航集合，需要动态显隐就改 `IsVisible`。
 - **页面实例走键控 DI**，`PageInfo.Id` 就是 DI 的 key；页面工厂在 `MainView` / `SettingsView` 里。
-- **页面自己不要画标题**：两个壳都会渲染标题（主界面用 `MainViewModel.PageTitle`，作业板名称可在设置里改；
-  设置界面用 `SelectedPageInfo.Name`），页面里再写一遍 `Classes="h1"` 就是重复；
-  确实要隐藏就设 `PageInfo.HidePageTitle`。
+- **页面标题的归属分两种壳**：主界面壳渲染标题（`MainViewModel.PageTitle`，作业板名称可在设置里改），
+  主页面自己**不要**再画一遍 `Classes="h1"`；设置壳**不渲染**标题，设置页必须自己把标题画在
+  `page-container` 里（`Theme="{StaticResource TitleTextBlockStyle}"` + `Margin="0 4 0 0"`）——
+  标题和设置卡同属一个限宽容器，才会跟着卡片一起滚动、左边缘也与卡片对齐。
+  主界面页要隐藏标题就设 `PageInfo.HidePageTitle`（设置页用不到它）。
+- **设置页用分区标题分块**：一页塞不下时不要新开导航页，用 `<TextBlock Classes="section-title" />`
+  把设置按用途分成几段（样式见 `Core/Styles/StylesBase.axaml`）。页内首组不加分区标题；
+  分区标题文字加在 resx 的 `Settings_Section_*`。
 - ⚠️ **设置界面选中导航项前必须保证容器已实例化**（否则窗口卡死）：初始选中推迟到首次布局之后，
   分组内的页面先用 `ExpandGroupsContaining` 展开祖先分组并走一次 `UpdateLayout()`。
   原因见 `docs/project_rules.md` 第 3 节。
@@ -285,11 +319,11 @@ public partial class BoardSettingsConfig : ObservableObject
   改元素字段不会。需要可编辑元素时自己在 VM 里订阅元素属性并显式 `MainConfigHandler.Save()`
   （范例见 `BoardSettingsPageViewModel.SaveAll`）。
 - **业务数据不进 `settings.json`**：作业板数据全在 `data/board/`（与设置文件的 `data/config/` 分开），
-  由 `BoardService` 在每次变更后落盘（`IBoardService.Types` / `Subjects` 是「调用方直接改集合、
+  由 `BoardService` 在每次变更后落盘（`IBoardService.Subjects` 是「调用方直接改集合、
   改完调 `Save()`」的用法）。这样绕开了上一条的坑，也把「应用偏好」和「用户数据」分开。
   设置页负责编辑它们，但**存储位置不等于设置项**：编辑界面在设置里，数据仍在 `data/board/`。
 - **作业按创建日期分文件归档**：`data/board/<年>/<月>/<日>/notes.json`（`BoardNoteStore`），
-  一天一个文件、同一天的多条作业合并其中；类型与科目这类**定义**才写单份 `data/board/board.json`。
+  一天一个文件、同一天的多条作业合并其中；科目这类**定义**才写单份 `data/board/board.json`。
   作业从内存整份重写时，没有落笔的旧日期文件会被删掉、空目录逐级回收。
   旧版挤在 `data/config/board.json` 里的数据由 `BoardService` 在归档为空时一次性搬迁（见 `LegacyBoardFile`）。
 - **过期作业是「打标记清理」不是「删文件、搬目录」**：到点由 `BoardCleanupService` 给命中的作业写上
@@ -306,27 +340,29 @@ public partial class BoardSettingsConfig : ObservableObject
   旧版本已经归档的数据不能被这次改动动到。
 - **批量清理走 `IBoardService.CleanMany(ids, cleanedAt)`**：只给 `CleanedAt is null` 的作业打标记、
   只落盘一次、集合变更只通知一次；**不要**循环调 `Update`（那会一条落盘一次、界面重建一次）。
-- **清理规则只有一条：过了截止日期**（`BoardExpiryPolicy.IsExpired`，纯函数、`today` 从参数进来）。
+- **清理规则只有一条：到了截止日期就算过期**（`BoardExpiryPolicy.IsExpired`，纯函数、`today` 从参数进来）。
   没填截止日期的作业不管建了多久都不会被清掉（曾经的「保留天数」已按用户要求删掉）；
-  到期**当天**不算过期、第二天才算，判据与作业条上那行「过期 N 天」同源
-  （`BoardDueDateFormatter.IsOverdue`），两边不能各写一套。
+  **当天就算**（`due <= today`，用户要的是「截止时刻到了之后它就算没了」），
+  所以界面那行「今天截止 / 过期 N 天」故意晚一天说（`BoardDueDateFormatter.IsOverdue` 仍是 `due < today`）：
+  截止当天卡片还写着「今天截止」，当天的清理时刻已经把它收走了。
+  ⚠️ 两条判据**故意不同、方向必须一致**（界面说已过期 ⇒ 清理一定也认为过期），改一边要看另一边的用例。
   `DueDate` 是 `BoardNote` 上的 `DateOnly?` 结构化字段（`[JsonIgnore(WhenWritingNull)]`，没填的不落盘），
-  **不是** `BoardFieldKind.Date` 自定义字段——清理器要统一读取，不能靠字段名去猜。
+  **不是**靠名字去认的自由文本字段——清理器要统一读取它，不能靠字段名去猜。
   ⚠️ `BoardService.Update` 是逐字段复制的，**给 `BoardNote` 加字段必须同时加进 `Update`**；
   它按 `Id` 定位、`CreatedAt` 与 `Order` 不参与编辑（编辑今天这条作业不该动到以前的）。
 - **只有一个触发时刻**：`BoardCleanupSchedule.ShouldRun` 比「最近一个清理时刻」与进程内的
   `BoardCleanupService.LastRun`（每天/每周某天某时刻），漏掉的时刻下次启动自然补清、空跑无害，
   因此不需要状态文件。曾经的「过期当天清理时刻」已按用户要求删掉：到了清理时刻那一轮，
-  凡过了截止日期的都清，不再有第二个时间点。
+  凡到了截止日期的都清，不再有第二个时间点。
   应用层由 `BoardCleanupHostedService`（`BackgroundService`，注册见
   `App.axaml.cs` 的 `AddHostedService`）每分钟看一眼是否到点——不睡到下一个时刻，是因为用户随时会改时刻
   或关开关；动手前先 `Dispatcher.UIThread.InvokeAsync` 回 UI 线程，打标记会重建界面上的列表。
   批量清理走 `IBoardService.CleanMany`（见上一条），**不要**循环调 `Update`（那会一条落盘一次、界面重建一次）。
   这个功能**默认开启**（`CleanupEnabled = true`，用户明确要的默认值）。
   ⚠️ **手动「立即清理」不看时刻、也不看开关**（`RunCleanupNow` 直接调 `BoardCleanupService.Run`）：
-  点一下就该见效，把当天/以前过了截止日期的作业当场清掉——曾经的问题正是「到点判定」把它挡住了。
+  点一下就该见效，把到了截止日期的作业当场清掉——曾经的问题正是「到点判定」把它挡住了。
   ⚠️ 改这里必须同时改 `Corkboard.Core.Tests/BoardCleanupTests.cs`：判定只看截止日期（没期限的永不清、
-  到期当天不清、第二天清）、手动清不看时刻、已清理的作业留在原文件、不重复计数、
+  到了截止日期当天就清）、手动清不看时刻、已清理的作业留在原文件、不重复计数、
   旧 `_trash` 目录对存储层不可见，这些都有用例。
   设置页里那个时刻用 Avalonia 自带的 `TimePicker`（`SelectedTime` 是 `TimeSpan?`；FluentAvalonia 里
   **没有**时间类控件），走草稿 + `LostFocus`/离页提交，不要直接双向绑到配置。

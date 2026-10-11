@@ -2,13 +2,10 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using FluentAvalonia.UI.Controls;
 using Corkboard.Core.Abstraction;
 using Corkboard.Core.Attributes;
 using Corkboard.Core.Icons;
-using Corkboard.Core.Models.Board;
 using Corkboard.ViewModels.SettingsPages;
-using CR = Corkboard.Core.Langs.Common.Resources;
 
 namespace Corkboard.Views.SettingsPages.Board;
 
@@ -38,16 +35,10 @@ public partial class BoardSettingsPage : UserControl
         ViewModel?.SaveAll();
     }
 
-    /// <summary>类型名、字段名、科目这些输入框失焦就落一次盘。</summary>
+    /// <summary>科目这些输入框失焦就落一次盘。</summary>
     private void OnEditorLostFocus(object? sender, RoutedEventArgs e)
     {
         ViewModel?.SaveAll();
-    }
-
-    private void OnAddFieldClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control { DataContext: BoardTypeDef type })
-            ViewModel?.AddField(type);
     }
 
     /// <summary>色板行的按钮：色块对象在行的 DataContext 上。</summary>
@@ -67,38 +58,6 @@ public partial class BoardSettingsPage : UserControl
     {
         if (sender is Control { DataContext: BoardPaletteColorItem item })
             ViewModel?.RemovePaletteColor(item);
-    }
-
-    private void OnDeleteFieldClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control { DataContext: BoardTypeField field })
-            ViewModel?.RemoveField(field);
-    }
-
-    /// <summary>
-    ///     删类型要先确认：类型里的字段是用户一条条敲出来的，
-    ///     而且删掉之后用它建的作业就只剩个名字了。
-    /// </summary>
-    private async void OnDeleteTypeClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { DataContext: BoardTypeDef type } || ViewModel is not { } viewModel)
-            return;
-
-        if (TopLevel.GetTopLevel(this) is { } topLevel)
-        {
-            var dialog = new FAContentDialog
-            {
-                Title = CR.Settings_Board_TypeDelete,
-                Content = CR.Settings_Board_TypeDeleteMessage,
-                PrimaryButtonText = CR.Settings_Board_TypeDelete,
-                CloseButtonText = CR.Common_Cancel
-            };
-
-            if (await dialog.ShowAsync(topLevel) != FAContentDialogResult.Primary)
-                return;
-        }
-
-        viewModel.RemoveType(type);
     }
 
     private void InitializeComponent()

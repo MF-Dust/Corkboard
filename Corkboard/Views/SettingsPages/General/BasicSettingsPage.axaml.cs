@@ -5,6 +5,7 @@ using FluentAvalonia.UI.Controls;
 using Corkboard.Core.Abstraction;
 using Corkboard.Core.Attributes;
 using Corkboard.Core.Icons;
+using Corkboard.Services.Ui;
 using Corkboard.ViewModels.SettingsPages;
 using CR = Corkboard.Core.Langs.Common.Resources;
 
@@ -61,6 +62,9 @@ public partial class BasicSettingsPage : UserControl
         if (TopLevel.GetTopLevel(this) is not { } topLevel)
             return;
 
+        // 对话框显示期间让窗口不透明：整窗 alpha 会把对话框一起变透明（见 ModalOpacityScope）。
+        // 这个窗口不登记不透明度能力，所以这里实际上是空操作，写上是为了不漏掉任何一处对话框。
+        using var modalOpacity = ModalOpacityScope.Begin(this);
         await new FAContentDialog
         {
             Title = CR.Settings_Basic_Autostart,

@@ -94,19 +94,16 @@
                              IsPaneToggleButtonVisible="False"
                              IsPaneOpen="True"
                              MenuItemsSource="{Binding ViewModel.NavigationViewItems, Mode=OneWay}"
+                             FooterMenuItemsSource="{Binding ViewModel.NavigationViewFooterItems, Mode=OneWay}"
                              SelectedItem="{Binding ViewModel.SelectedNavigationViewItem, UpdateSourceTrigger=PropertyChanged}"
                              ItemInvoked="NavigationView_OnItemInvoked">
-            <Grid RowDefinitions="Auto, *">
-                <TextBlock Grid.Row="0" Margin="12 16 18 0"
-                           FontWeight="Normal"
-                           IsVisible="{Binding !ViewModel.SelectedPageInfo.HidePageTitle}"
-                           Text="{Binding ViewModel.SelectedPageInfo.Name}"
-                           Theme="{StaticResource TitleTextBlockStyle}" />
-
-                <fa:FAFrame Grid.Row="1"
-                            x:Name="NavigationFrame"
-                            CacheSize="0" />
-            </Grid>
+            <!--
+                页面标题不在这里：它必须和设置卡同属一个限宽容器，才会跟着卡片一起滚动、
+                左边缘也才对得齐（见各设置页根节点的 page-container 与 Core/Styles/StylesBase.axaml）。
+                壳层只挂导航内容。
+            -->
+            <fa:FAFrame x:Name="NavigationFrame"
+                        CacheSize="0" />
         </fa:FANavigationView>
     </Grid>
 </ContentPage>

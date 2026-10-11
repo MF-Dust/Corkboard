@@ -31,6 +31,13 @@ public partial class BoardSettingsConfig : ObservableObject
     /// </summary>
     [ObservableProperty] private double _blockMinWidth = BoardBlockStyle.DefaultMinItemWidth;
 
+    /// <summary>
+    ///     区块宽度是否自适应（对应「设置 → 作业板 → 区块宽度 → 区块宽度自适应」那个开关）。
+    ///     开着时单块宽度随窗口伸缩，到上限才换行；关掉则每块固定为 <see cref="BlockMinWidth" />。
+    ///     默认开：那条「随窗口伸缩」的行为是原来的表现，开关只是给了关掉它的办法。
+    /// </summary>
+    [ObservableProperty] private bool _blockWidthAdaptive = true;
+
     /// <summary>便签排序方式。改它的入口在主界面标题栏的排序按钮（设置里只有排布这类展示设置）。</summary>
     [ObservableProperty] private BoardSortMode _sortMode = BoardSortMode.CreatedDescending;
 
@@ -67,6 +74,18 @@ public partial class BoardSettingsConfig : ObservableObject
     ///     局部颜色标注是在它之上的覆盖。
     /// </summary>
     [ObservableProperty] private Color? _defaultContentColor;
+
+    /// <summary>
+    ///     科目标题的字号（对应「设置 → 作业板 → 字号 → 科目标题字号」）。
+    ///     读的时候一律过一遍 <see cref="BoardTextStyle.ClampSubjectFontSize" />。
+    /// </summary>
+    [ObservableProperty] private double _subjectFontSize = BoardTextStyle.DefaultSubjectFontSize;
+
+    /// <summary>
+    ///     作业条上小字（类型与字段值、截止日期）的字号。
+    ///     读的时候一律过一遍 <see cref="BoardTextStyle.ClampMetaFontSize" />。
+    /// </summary>
+    [ObservableProperty] private double _noteMetaFontSize = BoardTextStyle.DefaultMetaFontSize;
 
     /// <summary>
     ///     选中文字后弹出的工具浮窗上那排预设色。最多 <see cref="BoardPalette.MaxColors" /> 个，

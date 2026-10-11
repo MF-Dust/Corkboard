@@ -107,9 +107,9 @@ public class BoardStorageEndToEndTests : IDisposable
     [Fact]
     public void LegacyFile_DoesNotOverrideUserEditedDefinition()
     {
-        // 用户已经删光了类型与科目：旧文件里的定义不该被搬回来覆盖用户的选择。
+        // 用户已经删光了科目：旧文件里的定义不该被搬回来覆盖用户的选择。
         var config = new SandboxConfigService(ConfigPath);
-        config.SaveConfig(new BoardConfig { Types = [], Subjects = [] });
+        config.SaveConfig(new BoardConfig { Subjects = [] });
 
         Directory.CreateDirectory(Path.GetDirectoryName(LegacyPath)!);
         File.WriteAllText(LegacyPath, """
@@ -118,7 +118,6 @@ public class BoardStorageEndToEndTests : IDisposable
 
         var service = new BoardService(config, CreateStore(), NullLogger<BoardService>.Instance);
 
-        Assert.Empty(service.Types);
         Assert.Empty(service.Subjects);
     }
 
@@ -139,7 +138,8 @@ public class BoardStorageEndToEndTests : IDisposable
         Assert.Single(CreateStore().LoadAll());
 
         // 作业只进日期目录；定义文件里不含作业。
-        var definition = File.ReadAllText(Path.Combine(BoardRoot, "board.json"));        Assert.Contains("\"types\"", definition);
+        var definition = File.ReadAllText(Path.Combine(BoardRoot, "board.json"));
+        Assert.Contains("\"subjects\"", definition);
         Assert.DoesNotContain("\"notes\"", definition);
     }
 

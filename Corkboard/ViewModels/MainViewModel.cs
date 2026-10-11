@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Corkboard.Core.Attributes;
 using Corkboard.Core.Enums.Configs;
+using Corkboard.Core.Models.SubConfigs.General;
 using Corkboard.Core.Models.SubConfigs.Board;
 using Corkboard.Core.Services.Config;
 using CR = Corkboard.Core.Langs.Common.Resources;
@@ -24,6 +25,7 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel(MainConfigHandler configHandler) : base(configHandler)
     {
         Config.BoardSettings.PropertyChanged += OnBoardSettingsChanged;
+        Config.Basic.PropertyChanged += OnBasicSettingsChanged;
     }
 
     [ObservableProperty] private object? _frameContent;
@@ -50,6 +52,12 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>排序按钮的提示：把当前档写进去，不用点开菜单就知道现在按什么排。</summary>
     public string SortTip =>
         string.Format(CultureInfo.CurrentCulture, CR.Board_Sort_Tip, SelectedSortOption.DisplayName);
+
+    /// <summary>
+    ///     主窗口右下角那颗「布置作业」浮标画不画：设置里打开之外，点击穿透锁住窗口时也一并隐藏
+    ///     （那时整窗收不到鼠标，浮标只是颗点不动的装饰，和标题栏右上角那一排同理）。
+    /// </summary>
+    public bool ShowCornerAssignButton => Config.Basic.ShowCornerAssignButton && !Config.Basic.ClickThrough;
 
     // 菜单里的勾选不在这里：菜单项画在弹出层里、拿不到这里的 DataContext，
     // 所以由 MainView 在弹出时按 SelectedSortOption 直接写（见 MainView.RefreshSortMenuChecks）。
@@ -96,9 +104,20 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private void OnBasicSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is null
+            or nameof(BasicSettingsConfig.ShowCornerAssignButton)
+            or nameof(BasicSettingsConfig.ClickThrough))
+        {
+            OnPropertyChanged(nameof(ShowCornerAssignButton));
+        }
+    }
+
     /// <summary>主界面壳离开可视树时断开订阅（配置是单例，见 BoardPageViewModel.Detach 的同类说明）。</summary>
     public void Detach()
     {
         Config.BoardSettings.PropertyChanged -= OnBoardSettingsChanged;
+        Config.Basic.PropertyChanged -= OnBasicSettingsChanged;
     }
 }

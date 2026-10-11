@@ -67,24 +67,8 @@
   <data name="Board_Uncategorized" xml:space="preserve">
     <value>No subject</value>
   </data>
-  <data name="Board_Untitled" xml:space="preserve">
-    <value>Untitled</value>
-  </data>
-  <data name="Board_UntitledField" xml:space="preserve">
-    <value>Unnamed field</value>
-  </data>
-  <data name="Board_TypeLabel" xml:space="preserve">
-    <value>Type</value>
-  </data>
-  <data name="Board_TypeDirect" xml:space="preserve">
-    <value>Just write</value>
-  </data>
   <data name="Board_SubjectLabel" xml:space="preserve">
     <value>Subject</value>
-  </data>
-  <!-- Page-range display format: {0} first page, {1} last page. -->
-  <data name="Board_PageRangeFormat" xml:space="preserve">
-    <value>p.{0}–{1}</value>
   </data>
   <data name="Board_EmptyTitle" xml:space="preserve">
     <value>No assignments yet</value>
@@ -116,40 +100,7 @@
   <data name="Board_ReplayReadOnlyHint" xml:space="preserve">
     <value>Assignments are read-only while replaying</value>
   </data>
-  <data name="Board_FieldKind_Text" xml:space="preserve">
-    <value>Text</value>
-  </data>
-  <data name="Board_FieldKind_Paragraph" xml:space="preserve">
-    <value>Paragraph</value>
-  </data>
-  <data name="Board_FieldKind_Number" xml:space="preserve">
-    <value>Number</value>
-  </data>
-  <data name="Board_FieldKind_PageRange" xml:space="preserve">
-    <value>Page range</value>
-  </data>
-  <!-- Seed assignment types and subjects, editable in settings. -->
-  <data name="Board_Seed_Type_Workbook" xml:space="preserve">
-    <value>Workbook</value>
-  </data>
-  <data name="Board_Seed_Type_Copy" xml:space="preserve">
-    <value>Copying</value>
-  </data>
-  <data name="Board_Seed_Type_Recite" xml:space="preserve">
-    <value>Recitation</value>
-  </data>
-  <data name="Board_Seed_Type_Paper" xml:space="preserve">
-    <value>Worksheet</value>
-  </data>
-  <data name="Board_Seed_Field_Pages" xml:space="preserve">
-    <value>Pages</value>
-  </data>
-  <data name="Board_Seed_Field_Content" xml:space="preserve">
-    <value>Content</value>
-  </data>
-  <data name="Board_Seed_Field_Times" xml:space="preserve">
-    <value>Times</value>
-  </data>
+  <!-- Seed subjects, editable in settings. -->
   <data name="Board_Seed_Subject_Chinese" xml:space="preserve">
     <value>Chinese</value>
   </data>
@@ -221,8 +172,27 @@
   <data name="Settings_Group_About" xml:space="preserve">
     <value>About</value>
   </data>
+  <!-- Section titles inside a settings page: groups a page's settings by purpose. -->
+  <data name="Settings_Section_Startup" xml:space="preserve">
+    <value>Startup</value>
+  </data>
+  <data name="Settings_Section_Window" xml:space="preserve">
+    <value>Window</value>
+  </data>
+  <data name="Settings_Section_DeleteAndCleanup" xml:space="preserve">
+    <value>Deleting and cleanup</value>
+  </data>
+  <data name="Settings_Section_StyleAndPalette" xml:space="preserve">
+    <value>Style and palette</value>
+  </data>
+  <data name="Settings_Section_Theme" xml:space="preserve">
+    <value>Theme and color</value>
+  </data>
+  <data name="Settings_Section_Font" xml:space="preserve">
+    <value>Font and weight</value>
+  </data>
   <data name="Settings_Basic_Title" xml:space="preserve">
-    <value>Basic settings</value>
+    <value>General</value>
   </data>
   <data name="Settings_Basic_Language" xml:space="preserve">
     <value>Language</value>
@@ -241,55 +211,55 @@
     <value>Start with system</value>
   </data>
   <data name="Settings_Basic_AutostartDescription" xml:space="preserve">
-    <value>Launches the application automatically at sign-in; the option below controls the main window</value>
+    <value>Opens on its own when you sign in</value>
   </data>
   <data name="Settings_Basic_ShowStartupWindow" xml:space="preserve">
     <value>Show main window on startup</value>
   </data>
   <data name="Settings_Basic_ShowStartupWindowDescription" xml:space="preserve">
-    <value>When off, startup only creates the tray icon; click it to show the window</value>
+    <value>Turn off to stay in the tray until you click it</value>
   </data>
   <data name="Settings_Basic_AutoSaveWindowSize" xml:space="preserve">
     <value>Remember window size and position</value>
   </data>
   <data name="Settings_Basic_AutoSaveWindowSizeDescription" xml:space="preserve">
-    <value>Saves the size and maximized state of the main and settings windows, plus the main window's position on screen, then scales the position proportionally if the screen size changed</value>
+    <value>Reopens at the same size and spot</value>
   </data>
   <data name="Settings_Basic_PinToDesktop" xml:space="preserve">
     <value>Pin to desktop</value>
   </data>
   <data name="Settings_Basic_PinToDesktopDescription" xml:space="preserve">
-    <value>Embeds the main window into the desktop layer, below every ordinary window</value>
+    <value>Stays on the desktop, under other windows</value>
   </data>
   <data name="Settings_Basic_HoldToDragWindow" xml:space="preserve">
     <value>Hold to drag the window</value>
   </data>
   <data name="Settings_Basic_HoldToDragWindowDescription" xml:space="preserve">
-    <value>Hold anywhere on the main window to drag it; when off, only the title bar moves the window</value>
+    <value>Press any empty part of the window to drag it</value>
   </data>
   <data name="Settings_Basic_MainWindowOpacity" xml:space="preserve">
     <value>Main window opacity</value>
   </data>
   <data name="Settings_Basic_MainWindowOpacityDescription" xml:space="preserve">
-    <value>Fades the whole main window, notes included; lower values are more transparent</value>
+    <value>Lower values let more of the desktop show through</value>
   </data>
   <data name="Settings_Basic_ClickThrough" xml:space="preserve">
     <value>Click-through</value>
   </data>
   <data name="Settings_Basic_ClickThroughDescription" xml:space="preserve">
-    <value>The main window stops responding to mouse and touch; open settings from the tray menu to change it</value>
+    <value>The mouse goes right through it, change it from the tray</value>
   </data>
   <data name="Settings_Basic_CornerAssignButton" xml:space="preserve">
     <value>Corner assign button</value>
   </data>
   <data name="Settings_Basic_CornerAssignButtonDescription" xml:space="preserve">
-    <value>Float a button in the bottom-right corner of the main window; click it to assign homework</value>
+    <value>A plus button in the corner for quick notes</value>
   </data>
   <data name="Settings_Group_Board" xml:space="preserve">
     <value>Board</value>
   </data>
   <data name="Settings_Board_Title" xml:space="preserve">
-    <value>Board settings</value>
+    <value>Board</value>
   </data>
   <data name="Settings_Board_Name" xml:space="preserve">
     <value>Name</value>
@@ -301,13 +271,19 @@
     <value>Layout</value>
   </data>
   <data name="Settings_Board_LayoutDescription" xml:space="preserve">
-    <value>How notes are arranged: list is width-limited and centered, blocks reflow to fit the window</value>
+    <value>One centred column, or columns that fit the window</value>
   </data>
   <data name="Settings_Board_BlockMinWidth" xml:space="preserve">
     <value>Block width</value>
   </data>
   <data name="Settings_Board_BlockMinWidthDescription" xml:space="preserve">
-    <value>Minimum width of one block: larger values mean fewer, wider columns (default 300)</value>
+    <value>Roughly how wide one block is, bigger means fewer columns</value>
+  </data>
+  <data name="Settings_Board_BlockWidthAdaptive" xml:space="preserve">
+    <value>Adaptive block width</value>
+  </data>
+  <data name="Settings_Board_BlockWidthAdaptiveDescription" xml:space="preserve">
+    <value>Blocks grow with the window, then wrap</value>
   </data>
   <data name="Board_Sort_Tip" xml:space="preserve">
     <value>Sort by: {0}</value>
@@ -334,44 +310,14 @@
     <value>Subjects</value>
   </data>
   <data name="Settings_Board_SubjectsDescription" xml:space="preserve">
-    <value>Comma separated; pick one when adding an assignment</value>
-  </data>
-  <data name="Settings_Board_Types" xml:space="preserve">
-    <value>Assignment types</value>
-  </data>
-  <data name="Settings_Board_TypesDescription" xml:space="preserve">
-    <value>Which fields each kind of assignment needs; picking a type expands exactly those fields</value>
-  </data>
-  <data name="Settings_Board_TypeAdd" xml:space="preserve">
-    <value>Add type</value>
-  </data>
-  <data name="Settings_Board_TypeDelete" xml:space="preserve">
-    <value>Delete type</value>
-  </data>
-  <data name="Settings_Board_TypeDeleteMessage" xml:space="preserve">
-    <value>This cannot be undone; assignments already created with it become plain assignments</value>
-  </data>
-  <data name="Settings_Board_TypeNamePlaceholder" xml:space="preserve">
-    <value>Type name, e.g. Workbook</value>
-  </data>
-  <data name="Settings_Board_TypeFieldAdd" xml:space="preserve">
-    <value>Add field</value>
-  </data>
-  <data name="Settings_Board_FieldLabelPlaceholder" xml:space="preserve">
-    <value>Field name, e.g. Pages</value>
-  </data>
-  <data name="Settings_Board_FieldKind" xml:space="preserve">
-    <value>Value type</value>
-  </data>
-  <data name="Settings_Board_FieldDelete" xml:space="preserve">
-    <value>Delete field</value>
+    <value>Separate with commas, pick one when adding a note</value>
   </data>
   <!-- 内容的默认字号/颜色：新作业没单独定的时候用它们。 -->
   <data name="Settings_Board_ContentStyle" xml:space="preserve">
     <value>Content defaults</value>
   </data>
   <data name="Settings_Board_ContentStyleDescription" xml:space="preserve">
-    <value>Default font size and color for new homework content; a single note can still override them</value>
+    <value>Default font size and colour for new notes</value>
   </data>
   <data name="Settings_Board_DefaultFontSize" xml:space="preserve">
     <value>Default font size</value>
@@ -382,11 +328,30 @@
   <data name="Settings_Board_DefaultColorFollowTheme" xml:space="preserve">
     <value>Follow theme</value>
   </data>
+  <!-- 作业板上两处小字的字号：科目标题，以及作业条上的说明文字与截止日期。 -->
+  <data name="Settings_Board_FontSizes" xml:space="preserve">
+    <value>Font sizes</value>
+  </data>
+  <data name="Settings_Board_FontSizesDescription" xml:space="preserve">
+    <value>Sizes for the subject line and the small text</value>
+  </data>
+  <data name="Settings_Board_SubjectFontSize" xml:space="preserve">
+    <value>Subject heading size</value>
+  </data>
+  <data name="Settings_Board_SubjectFontSizeDescription" xml:space="preserve">
+    <value>How big the subject line is</value>
+  </data>
+  <data name="Settings_Board_NoteMetaFontSize" xml:space="preserve">
+    <value>Note detail size</value>
+  </data>
+  <data name="Settings_Board_NoteMetaFontSizeDescription" xml:space="preserve">
+    <value>How big the due date and small text is</value>
+  </data>
   <data name="Settings_Board_Palette" xml:space="preserve">
     <value>Quick colors</value>
   </data>
   <data name="Settings_Board_PaletteDescription" xml:space="preserve">
-    <value>The quick colors on the toolbar above the editor; up to 5, and you can also type a color value there</value>
+    <value>The quick colours in the toolbar, up to five</value>
   </data>
   <data name="Settings_Board_PaletteAdd" xml:space="preserve">
     <value>Add color</value>
@@ -405,7 +370,7 @@
     <value>Automatic cleanup</value>
   </data>
   <data name="Settings_Board_CleanupDescription" xml:space="preserve">
-    <value>Assignments past their due date are taken off the board; the data itself is not deleted</value>
+    <value>Notes leave the board on their due date, data stays</value>
   </data>
   <data name="Settings_Board_CleanupEnabled" xml:space="preserve">
     <value>Enable automatic cleanup</value>
@@ -414,7 +379,7 @@
     <value>Run</value>
   </data>
   <data name="Settings_Board_CleanupFrequencyDescription" xml:space="preserve">
-    <value>Cleanup only runs at the time below; a missed run happens the next time the app starts</value>
+    <value>How often it runs, a missed run happens next launch</value>
   </data>
   <data name="Settings_Board_CleanupFrequency_Daily" xml:space="preserve">
     <value>Every day</value>
@@ -429,7 +394,7 @@
     <value>At</value>
   </data>
   <data name="Settings_Board_CleanupTimeDescription" xml:space="preserve">
-    <value>From this time on, assignments past their due date are taken off the board; assignments without a due date are never taken</value>
+    <value>What time it runs, notes without a due date stay</value>
   </data>
   <data name="Settings_Board_CleanupRunNow" xml:space="preserve">
     <value>Clean up now</value>
@@ -472,7 +437,7 @@
     <value>Due date</value>
   </data>
   <data name="Settings_Board_DueDateDescription" xml:space="preserve">
-    <value>Leave empty to go by creation date; once filled in it takes over</value>
+    <value>Leave it empty and the note is never cleaned up</value>
   </data>
   <data name="Settings_Board_DueDateClear" xml:space="preserve">
     <value>Clear</value>
@@ -517,7 +482,7 @@
     <value>Accent color</value>
   </data>
   <data name="Settings_Appearance_ThemeColorDescription" xml:space="preserve">
-    <value>Use the accent color picked in the system, or set your own</value>
+    <value>Use the system accent, or pick your own</value>
   </data>
   <data name="Settings_Appearance_ThemeColorMode_Default" xml:space="preserve">
     <value>Follow system</value>
@@ -529,7 +494,7 @@
     <value>Font</value>
   </data>
   <data name="Settings_Appearance_FontFamilyDescription" xml:space="preserve">
-    <value>The font used across the app; changes apply right away</value>
+    <value>Font used across the interface</value>
   </data>
   <data name="Settings_Appearance_FontFamilyDefault" xml:space="preserve">
     <value>MiSans (default)</value>
@@ -538,7 +503,7 @@
     <value>Font weight</value>
   </data>
   <data name="Settings_Appearance_FontWeightDescription" xml:space="preserve">
-    <value>Weight of the UI text; the closest weight is used when the font lacks it</value>
+    <value>How bold the text looks, the nearest weight is used</value>
   </data>
   <data name="Settings_Appearance_FontWeight_Thin" xml:space="preserve">
     <value>Thin</value>
@@ -574,7 +539,7 @@
     <value>Version</value>
   </data>
   <data name="Settings_About_License" xml:space="preserve">
-    <value>Released under the GNU GPLv3 license</value>
+    <value>Released under the GPLv3 licence</value>
   </data>
   <data name="Settings_About_Description" xml:space="preserve">
     <value>A homework board you can put anywhere</value>
@@ -592,25 +557,25 @@
     <value>黎泽懿_Aionflux</value>
   </data>
   <data name="Settings_About_AuthorDescription" xml:space="preserve">
-    <value>Lead developer of Corkboard</value>
+    <value>The main developer behind the board</value>
   </data>
   <data name="Settings_About_Bilibili" xml:space="preserve">
     <value>BiliBili</value>
   </data>
   <data name="Settings_About_BilibiliDescription" xml:space="preserve">
-    <value>Visit 黎泽懿_Aionflux's BiliBili account</value>
+    <value>The author's Bilibili page, one click to open</value>
   </data>
   <data name="Settings_About_Donate" xml:space="preserve">
     <value>Donate</value>
   </data>
   <data name="Settings_About_DonateDescription" xml:space="preserve">
-    <value>Visit 黎泽懿_Aionflux's Afdian page to support the project's development; thank you for your donation!</value>
+    <value>Support the author if you like it</value>
   </data>
   <data name="Settings_About_Organization" xml:space="preserve">
     <value>SECTL</value>
   </data>
   <data name="Settings_About_OrganizationDescription" xml:space="preserve">
-    <value>The organization behind Corkboard</value>
+    <value>The organisation behind the project</value>
   </data>
   <data name="Settings_About_OrganizationHome" xml:space="preserve">
     <value>Organization Home</value>
@@ -626,5 +591,50 @@
   </data>
   <data name="Settings_About_Runtime" xml:space="preserve">
     <value>Runtime</value>
+  </data>
+  <data name="Settings_Account_Title" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="Settings_Account_Description" xml:space="preserve">
+    <value>Sign in with your SECTL organization account to use account features</value>
+  </data>
+  <data name="Settings_Account_Profile" xml:space="preserve">
+    <value>Account profile</value>
+  </data>
+  <data name="Settings_Account_ProfileDescription" xml:space="preserve">
+    <value>The SECTL account currently signed in</value>
+  </data>
+  <data name="Settings_Account_SignedOut" xml:space="preserve">
+    <value>Not signed in</value>
+  </data>
+  <data name="Settings_Account_Reauthorize" xml:space="preserve">
+    <value>Your session expired; sign in again</value>
+  </data>
+  <data name="Settings_Account_Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Settings_Account_SignIn" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="Settings_Account_SignOut" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="Settings_Account_Waiting" xml:space="preserve">
+    <value>Waiting for the browser</value>
+  </data>
+  <data name="Settings_Account_WaitingDescription" xml:space="preserve">
+    <value>Finish signing in in the browser window that just opened</value>
+  </data>
+  <data name="Settings_Account_Error" xml:space="preserve">
+    <value>Something went wrong</value>
+  </data>
+  <data name="Settings_Account_ErrorDescription" xml:space="preserve">
+    <value>Try again in a moment</value>
+  </data>
+  <data name="Settings_Account_SignOutConfirmTitle" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="Settings_Account_SignOutConfirmMessage" xml:space="preserve">
+    <value>Signing out deletes the credentials stored on this device; you will need to sign in again to use account features</value>
   </data>
 </root>

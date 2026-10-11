@@ -249,54 +249,27 @@ public class ConfigSerializationTests
     }
 
     [Fact]
-    public void BoardConfig_RoundTripsTypesAndFieldValues()
-    {
-        var config = new BoardConfig();
-        config.Types.Clear();
-        config.Types.Add(new BoardTypeDef
-        {
-            Name = "练习册",
-            Fields = [new BoardTypeField { Label = "页数", Kind = BoardFieldKind.PageRange }]
-        });
-
-        var json = JsonSerializer.Serialize(config, ConfigServiceBase.JsonOptions);
-
-        // 字段类型同样按数字落盘，只能在末尾增删成员。
-        Assert.Contains("\"kind\": 3", json);
-        // 计算属性不写进配置。
-        Assert.DoesNotContain("display_name", json);
-        Assert.DoesNotContain("display_label", json);
-        Assert.DoesNotContain("kind_index", json);
-        // 作业本身不在这个文件里：按创建日期分文件存（见 BoardNoteStore）。
-        Assert.DoesNotContain("\"notes\"", json);
-
-        var restored = JsonSerializer.Deserialize<BoardConfig>(json, ConfigServiceBase.JsonOptions)!;
-        Assert.Single(restored.Types);
-        Assert.Equal("练习册", restored.Types[0].Name);
-        Assert.Equal(BoardFieldKind.PageRange, restored.Types[0].Fields[0].Kind);
-    }
-
-    [Fact]
-    public void BoardDayFile_RoundTripsNotesWithValues()
+    public void BoardDayFile_RoundTripsNotes()
     {
         var day = new BoardDayFile();
-        day.Notes.Add(new BoardNote { Content = "数学", Values = { ["field-1"] = "12-15" } });
+        day.Notes.Add(new BoardNote { Content = "数学", Subject = "数学", DueDate = new DateOnly(2026, 10, 13) });
 
         var json = JsonSerializer.Serialize(day, ConfigServiceBase.JsonOptions);
         var restored = JsonSerializer.Deserialize<BoardDayFile>(json, ConfigServiceBase.JsonOptions)!;
 
         Assert.Single(restored.Notes);
         Assert.Equal("数学", restored.Notes[0].Content);
-        Assert.Equal("12-15", restored.Notes[0].Values["field-1"]);
+        Assert.Equal("数学", restored.Notes[0].Subject);
+        Assert.Equal(new DateOnly(2026, 10, 13), restored.Notes[0].DueDate);
     }
 
     [Fact]
-    public void LegacyBoardFile_ReadsNotesTypesAndSubjects()
+    public void LegacyBoardFile_ReadsNotesAndSubjects()
     {
-        // 旧版把三样东西塞在一个文件里，搬迁时必须都能读出来。
+        // 旧版把好几样东西塞在一个文件里，搬迁时该读的要读出来，已经删掉的功能留下的键静默忽略。
         const string legacy = """
         {
-          "notes": [ { "content": "旧作业", "subject": "数学" } ],
+          "notes": [ { "content": "旧作业", "subject": "数学", "type_id": "abc", "values": { "f1": "12-15" } } ],
           "types": [ { "name": "作文" } ],
           "subjects": [ "物理" ]
         }
@@ -306,42 +279,16 @@ public class ConfigSerializationTests
 
         Assert.Single(restored.Notes);
         Assert.Equal("旧作业", restored.Notes[0].Content);
-        Assert.Equal("作文", restored.Types[0].Name);
         Assert.Contains("物理", restored.Subjects);
     }
 
     [Fact]
-    public void BoardConfig_SeedsCommonTypesOnFirstRun()
+    public void BoardConfig_SeedsCommonSubjectsOnFirstRun()
     {
-        // 首次运行给几种常见作业类型打底，用户不用从零开始建类型。
+        // 首次运行给几个常见科目打底，用户不用从零开始建。
         var config = new BoardConfig();
 
-        Assert.NotEmpty(config.Types);
-        Assert.Contains(config.Types, type => type.Fields.Any(field => field.Kind == BoardFieldKind.PageRange));
         Assert.NotEmpty(config.Subjects);
-    }
-
-    [Fact]
-    public void BoardTypeField_DisplayHelpersFallBackWhenBlank()
-    {
-        var field = new BoardTypeField();
-
-        Assert.Equal(CR.Board_UntitledField, field.DisplayLabel);
-        Assert.Equal(CR.Board_Untitled, new BoardTypeDef().DisplayName);
-
-        field.Label = "  页数  ";
-        Assert.Equal("页数", field.DisplayLabel);
-    }
-
-    [Fact]
-    public void BoardTypeField_KindIndexTracksKindAndClampsOutOfRange()
-    {
-        var field = new BoardTypeField { Kind = BoardFieldKind.Number };
-        Assert.Equal((int)BoardFieldKind.Number, field.KindIndex);
-
-        // 设置页绑的是 SelectedIndex，越界值不能把字段带到未定义枚举上。
-        field.KindIndex = 99;
-        Assert.Equal(BoardFieldKinds.All[^1], field.Kind);
     }
 
     [Fact]

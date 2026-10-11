@@ -11,6 +11,12 @@
     <ScrollViewer>
         <!-- 设置卡：Header 是设置项名称，Description 是简介，Footer 放控件。见 Core/Styles/StylesBase.axaml。 -->
         <StackPanel Classes="page-container">
+            <!-- 页标题画在 page-container 里：它才和设置卡同宽、同左边缘，并随卡片一起滚动。 -->
+            <TextBlock Margin="0 4 0 0"
+                       FontWeight="Normal"
+                       Text="{x:Static core:Resources.Settings_Basic_Title}"
+                       Theme="{StaticResource TitleTextBlockStyle}" />
+
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Basic_Language}">
                 <fa:FASettingsExpander.Footer>
                     <ComboBox MinWidth="180"
@@ -24,6 +30,9 @@
                     </ComboBox>
                 </fa:FASettingsExpander.Footer>
             </fa:FASettingsExpander>
+
+            <TextBlock Classes="section-title"
+                       Text="{x:Static core:Resources.Settings_Section_Startup}" />
 
             <!-- 平台不支持的能力整张卡隐藏，而不是留一个点不动的开关。 -->
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Basic_Autostart}"
@@ -49,6 +58,9 @@
                     <ToggleSwitch IsChecked="{Binding Basic.AutoSaveWindowSize}" />
                 </fa:FASettingsExpander.Footer>
             </fa:FASettingsExpander>
+
+            <TextBlock Classes="section-title"
+                       Text="{x:Static core:Resources.Settings_Section_Window}" />
 
             <!-- 平台不支持的能力整张卡隐藏，而不是留一个点不动的控件。 -->
             <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Basic_MainWindowOpacity}"

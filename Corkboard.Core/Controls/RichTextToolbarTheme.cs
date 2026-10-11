@@ -34,29 +34,39 @@ namespace Corkboard.Core.Controls;
 /// </summary>
 public static class RichTextToolbarTheme
 {
-    /// <summary>库写死的颜色 → 替换用的主题资源键，以及取不到资源时按主题用的兜底色。</summary>
+    /// <summary>
+    ///     库写死的颜色 → 替换用的主题资源键，以及取不到资源时按主题用的兜底色。
+    ///     <para>
+    ///         ⚠️ 每条还要标明它管哪些<b>属性角色</b>（底色 / 墨色 / 描边）。同一个颜色在不同属性上含义不同：
+    ///         库写死的白是「控件底色」（<c>#FFFFFF</c> 的输入框、下拉底），而暗色主题里的白正好是
+    ///         <c>TextFillColorPrimaryBrush</c>（主文字色、图标墨色）。不分角色地按颜色匹配，就会把主题自己的
+    ///         白前景当成库的白底，换成 <c>ControlFillColorDefaultBrush</c>（暗色下只有 6% 白）——
+    ///         表现就是暗色主题里工具条的图标与下拉文字几乎看不见（踩过的坑）。
+    ///     </para>
+    /// </summary>
     private static readonly Dictionary<Color, Replacement> Replacements = new()
     {
         // 工具条整条底色。换成**透明**：工具条跟它所在的「作业内容框」同色（用户要求「和背景一个色」），
         // 不再是一条有自己底色的横条；按钮/下拉各自的小底还在（见下面的白色条目），仍看得出是一排控件。
         [Color.Parse("#F5F6F8")] = Replacement.Transparent,
 
-        // 下拉、输入框、弹出层的底色。
-        [Colors.White] = new("ControlFillColorDefaultBrush", "#2D2D2D", "#FFFFFF"),
+        // 下拉、输入框、弹出层的底色（只管底色这一种角色）。
+        [Colors.White] = new("ControlFillColorDefaultBrush", "#2D2D2D", "#FFFFFF", Role.Surface),
 
         // 描边。
-        [Color.Parse("#DCDCDC")] = new("ControlStrokeColorDefaultBrush", "#3F3F3F", "#DCDCDC"),
-        [Color.Parse("#DDDDDD")] = new("ControlStrokeColorDefaultBrush", "#3F3F3F", "#DDDDDD"),
+        [Color.Parse("#DCDCDC")] = new("ControlStrokeColorDefaultBrush", "#3F3F3F", "#DCDCDC", Role.Line),
+        [Color.Parse("#DDDDDD")] = new("ControlStrokeColorDefaultBrush", "#3F3F3F", "#DDDDDD", Role.Line),
 
         // 图标与文字墨色。
-        [Color.Parse("#3C4043")] = new("TextFillColorPrimaryBrush", "#FFFFFF", "#1B1B1B"),
-        [Colors.Black] = new("TextFillColorPrimaryBrush", "#FFFFFF", "#000000"),
-        [Color.Parse("#70757A")] = new("TextFillColorSecondaryBrush", "#C5C5C5", "#70757A"),
-        [Color.Parse("#80868B")] = new("TextFillColorSecondaryBrush", "#C5C5C5", "#80868B"),
-        [Color.Parse("#BFC3C7")] = new("TextFillColorTertiaryBrush", "#8A8A8A", "#BFC3C7"),
+        [Color.Parse("#3C4043")] = new("TextFillColorPrimaryBrush", "#FFFFFF", "#1B1B1B", Role.Ink),
+        // 黑在库里也当色块底色用（「文字颜色」那颗按钮下面那条当前色），所以它对三种角色都生效。
+        [Colors.Black] = new("TextFillColorPrimaryBrush", "#FFFFFF", "#000000", Role.All),
+        [Color.Parse("#70757A")] = new("TextFillColorSecondaryBrush", "#C5C5C5", "#70757A", Role.Ink),
+        [Color.Parse("#80868B")] = new("TextFillColorSecondaryBrush", "#C5C5C5", "#80868B", Role.Ink),
+        [Color.Parse("#BFC3C7")] = new("TextFillColorTertiaryBrush", "#8A8A8A", "#BFC3C7", Role.Ink),
 
-        // 选中/激活态。
-        [Color.Parse("#90CAF9")] = new("AccentFillColorDefaultBrush", "#60CDFF", "#0078D4"),
+        // 选中/激活态：底色、墨色、描边都会用到。
+        [Color.Parse("#90CAF9")] = new("AccentFillColorDefaultBrush", "#60CDFF", "#0078D4", Role.All),
     };
 
     /// <summary>
@@ -99,50 +109,57 @@ public static class RichTextToolbarTheme
             // 显式给一次主文字色——亮色下等于原来的深灰，暗色下就是用户要的白色。
             case ComboBox combo:
                 combo.Foreground = ThemedText(combo);
-                combo.Background = Themed(combo.Background, host);
-                combo.BorderBrush = Themed(combo.BorderBrush, host);
+                combo.Background = Themed(combo.Background, host, Role.Surface);
+                combo.BorderBrush = Themed(combo.BorderBrush, host, Role.Line);
                 break;
 
             case ComboBoxItem item:
                 item.Foreground = ThemedText(item);
-                item.Background = Themed(item.Background, host);
+                item.Background = Themed(item.Background, host, Role.Surface);
                 break;
 
             case Border border:
-                border.Background = Themed(border.Background, host);
-                border.BorderBrush = Themed(border.BorderBrush, host);
+                border.Background = Themed(border.Background, host, Role.Surface);
+                border.BorderBrush = Themed(border.BorderBrush, host, Role.Line);
                 break;
 
             case Shape shape:
-                shape.Fill = Themed(shape.Fill, host);
-                shape.Stroke = Themed(shape.Stroke, host);
+                // 图标既有实心层（Fill 用墨色）也有描边层（Stroke 用墨色），所以这两种属性都要认墨色条目；
+                // 反过来 `Fill` 也可能是底色、`Stroke` 也可能是描边色，因此是「并集」而不是单选。
+                shape.Fill = Themed(shape.Fill, host, Role.Surface | Role.Ink);
+                shape.Stroke = Themed(shape.Stroke, host, Role.Line | Role.Ink);
                 break;
 
             case TextBlock textBlock:
-                textBlock.Foreground = Themed(textBlock.Foreground, host);
+                textBlock.Foreground = Themed(textBlock.Foreground, host, Role.Ink);
                 break;
 
             case ContentPresenter presenter:
-                presenter.Background = Themed(presenter.Background, host);
-                presenter.BorderBrush = Themed(presenter.BorderBrush, host);
+                presenter.Background = Themed(presenter.Background, host, Role.Surface);
+                presenter.BorderBrush = Themed(presenter.BorderBrush, host, Role.Line);
                 break;
 
             case TemplatedControl templated:
-                templated.Background = Themed(templated.Background, host);
-                templated.BorderBrush = Themed(templated.BorderBrush, host);
-                templated.Foreground = Themed(templated.Foreground, host);
+                templated.Background = Themed(templated.Background, host, Role.Surface);
+                templated.BorderBrush = Themed(templated.BorderBrush, host, Role.Line);
+                templated.Foreground = Themed(templated.Foreground, host, Role.Ink);
                 break;
 
             case Panel panel:
-                panel.Background = Themed(panel.Background, host);
+                panel.Background = Themed(panel.Background, host, Role.Surface);
                 break;
         }
     }
 
-    /// <summary>颜色对上表里的键就换成主题画刷，否则原样返回。</summary>
-    private static IBrush? Themed(IBrush? brush, Visual host)
+    /// <summary>颜色对上表里的键、且这条替换管当前属性角色时就换成主题画刷，否则原样返回。</summary>
+    private static IBrush? Themed(IBrush? brush, Visual host, Role role)
     {
         if (brush is not ISolidColorBrush solid || !Replacements.TryGetValue(solid.Color, out var replacement))
+            return brush;
+
+        // 颜色对上了，但这条替换不管这个角色（例如「白」只管底色）——说明这支画刷是主题自己的，
+        // 不是库写死的那一支，原样保留。
+        if ((replacement.Roles & role) == 0)
             return brush;
 
         // 空资源键 = 这条要换成透明（工具条整条底色）。
@@ -160,7 +177,7 @@ public static class RichTextToolbarTheme
     }
 
     /// <summary>当前主题下的主文字色（亮色深灰、暗色白），给库没设前景色的下拉框用。</summary>
-    private static IBrush ThemedText(Visual host) => Themed(Ink, host) ?? Ink;
+    private static IBrush ThemedText(Visual host) => Themed(Ink, host, Role.Ink) ?? Ink;
 
     /// <summary>
     ///     这个控件当前按哪套主题渲染。控件还没挂进窗口时 <see cref="StyledElement.ActualThemeVariant" />
@@ -227,11 +244,31 @@ public static class RichTextToolbarTheme
         }
     }
 
-    /// <summary>一支颜色替换：主题资源键 + 暗色兜底色 + 亮色兜底色（十六进制串，构造时解析成颜色）。</summary>
-    private sealed record Replacement(string ResourceKey, string DarkHex, string LightHex)
+    /// <summary>
+    ///     一条替换管哪些属性角色。同一个颜色在不同属性上含义不同（库的白底 vs 主题的白字），
+    ///     所以按角色匹配，见 <see cref="Replacements" />。
+    /// </summary>
+    [Flags]
+    private enum Role
     {
-        /// <summary>资源键为空 = 换成透明（跟所在容器同色）。</summary>
-        public static readonly Replacement Transparent = new(string.Empty, "#00000000", "#00000000");
+        /// <summary>底色：背景、填充。</summary>
+        Surface = 1,
+
+        /// <summary>墨色：前景、实心图标。</summary>
+        Ink = 2,
+
+        /// <summary>描边：边框、线条图标。</summary>
+        Line = 4,
+
+        All = Surface | Ink | Line
+    }
+
+    /// <summary>一支颜色替换：主题资源键 + 暗色兜底色 + 亮色兜底色（十六进制串，构造时解析成颜色）+ 生效角色。</summary>
+    private sealed record Replacement(string ResourceKey, string DarkHex, string LightHex, Role Roles = Role.All)
+    {
+        /// <summary>资源键为空 = 换成透明（跟所在容器同色）。只管底色。</summary>
+        public static readonly Replacement Transparent =
+            new(string.Empty, "#00000000", "#00000000", Role.Surface);
 
         public Color Dark { get; } = Color.Parse(DarkHex);
 

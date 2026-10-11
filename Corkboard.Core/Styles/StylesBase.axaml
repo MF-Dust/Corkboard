@@ -74,6 +74,17 @@
     </Style>
 
     <!--
+        设置页的分区标题：把一页里的设置按用途分成几块。
+        和页标题一样属于页面容器（page-container 的限宽与左内边距），所以随卡片一起滚动、左边缘也对齐。
+        Margin 的上边距 16 与 page-container 的 4px 间距相加：分区间距 20px、分区标题到首卡 8px。
+    -->
+    <Style Selector="TextBlock.section-title">
+        <Setter Property="Margin" Value="0 16 0 4" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!--
         开关只留本体：FluentAvalonia 的 ToggleSwitch 默认会在右侧显示 On/Off 文案。
         全局清掉 OnContent/OffContent，页面里不用逐个开关去写。
     -->
@@ -98,9 +109,14 @@
         <Setter Property="Background" Value="#66000000" />
     </Style>
 
-    <!-- 弹层里的卡片。没有标题栏，内容直接从表单开始。 -->
+    <!--
+        弹层里的卡片。没有标题栏，内容直接从表单开始。
+        底色必须是**不透明**的实体色：Fluent 的 CardBackgroundFillColorDefaultBrush 是半透明色，
+        卡片压在同窗内容上时，底下便签的文字会隐隐透上来（用户反馈「框的底是透明的」）；
+        这里用语义化实体底，和有对话框的实体底视觉上也统一。
+    -->
     <Style Selector="Border.sheet">
-        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />

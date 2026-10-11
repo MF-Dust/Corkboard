@@ -52,23 +52,6 @@
                                Text="{Binding FormTitle}" />
 
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0"
-                                   Classes="caption"
-                                   VerticalAlignment="Center"
-                                   Text="{x:Static core:Resources.Board_TypeLabel}" />
-                        <ComboBox Grid.Column="1"
-                                  HorizontalAlignment="Stretch"
-                                  ItemsSource="{Binding TypeOptions}"
-                                  SelectedItem="{Binding SelectedOption, Mode=TwoWay}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:BoardTypeOption">
-                                    <TextBlock Text="{Binding Name}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </Grid>
-
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                         <TextBlock Grid.Column="0" Classes="caption" VerticalAlignment="Center"
                                    Text="{x:Static core:Resources.Board_SubjectLabel}" />
                         <ComboBox Grid.Column="1"
@@ -79,7 +62,8 @@
                     </Grid>
 
                     <!--
-                        截止日期：不填就是不设，填了就以它为准（判过期时它优先于设置里的「保留天数」）。
+                        截止日期：默认填明天（见 ViewModel 构造期），可以改、也可以清掉。
+                        判过期只看这个日期，没填的作业永远不会被自动清理。
                         用 Avalonia 自带的 CalendarDatePicker 点一下挑日历，省事，也不会再出现
                         「2 月 31 日」这种要靠夹才能收场的非法输入。
                         选择器自己没地方把已挑的日期退回空值（点日历只会换一天），
@@ -186,65 +170,6 @@
                                   VerticalAlignment="Bottom" />
                         </Border>
                     </Grid>
-
-                    <!-- 字段控件全部用 Avalonia 自带控件：数字与页数用 NumericUpDown。 -->
-                    <ItemsControl x:Name="FieldList" ItemsSource="{Binding DraftFields}" IsVisible="{Binding HasDraftFields}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" ItemSpacing="12" LineSpacing="8" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.DataTemplates>
-                            <DataTemplate DataType="vm:BoardTextFieldDraft">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <TextBlock VerticalAlignment="Center" Text="{Binding Label}" />
-                                    <TextBox MinWidth="140" Text="{Binding Text, Mode=TwoWay}" />
-                                </StackPanel>
-                            </DataTemplate>
-
-                            <DataTemplate DataType="vm:BoardParagraphFieldDraft">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="{Binding Label}" />
-                                    <TextBox MinWidth="300"
-                                             MinHeight="56"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             Text="{Binding Text, Mode=TwoWay}" />
-                                </StackPanel>
-                            </DataTemplate>
-
-                            <DataTemplate DataType="vm:BoardNumberFieldDraft">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <TextBlock VerticalAlignment="Center" Text="{Binding Label}" />
-                                    <NumericUpDown MinWidth="110"
-                                                   Minimum="0"
-                                                   Maximum="9999"
-                                                   Increment="1"
-                                                   FormatString="0"
-                                                   Value="{Binding Value, Mode=TwoWay}" />
-                                </StackPanel>
-                            </DataTemplate>
-
-                            <DataTemplate DataType="vm:BoardPageRangeFieldDraft">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <TextBlock VerticalAlignment="Center" Text="{Binding Label}" />
-                                    <NumericUpDown MinWidth="100"
-                                                   Minimum="1"
-                                                   Maximum="9999"
-                                                   Increment="1"
-                                                   FormatString="0"
-                                                   Value="{Binding From, Mode=TwoWay}" />
-                                    <TextBlock VerticalAlignment="Center" Text="–" />
-                                    <NumericUpDown MinWidth="100"
-                                                   Minimum="1"
-                                                   Maximum="9999"
-                                                   Increment="1"
-                                                   FormatString="0"
-                                                   Value="{Binding To, Mode=TwoWay}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.DataTemplates>
-                    </ItemsControl>
 
                     <!--
                         底部动作行。它是「卡片高度上限」里必须留出来的那一块（见 ResolveContentSizeLimit）：

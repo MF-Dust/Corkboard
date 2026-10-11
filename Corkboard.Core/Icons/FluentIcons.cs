@@ -54,4 +54,7 @@ public static class FluentIcons
 
     /// <summary>主界面标题栏的排序入口。码位来自上游图标映射表 <c>arrow_sort_20_filled</c>。</summary>
     public const string ArrowSortFilled = "\uE13E";
+
+    /// <summary>设置里的账号页，兼作未登录时的头像占位。码位来自上游图标映射表 <c>person_20_filled</c>。</summary>
+    public const string PersonFilled = "\uECE4";
 }
