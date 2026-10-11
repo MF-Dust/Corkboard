@@ -18,7 +18,7 @@ public interface ICloudStorageClient
     Task<IReadOnlyList<CloudFileInfo>> ListFilesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>上传一个文件，返回云端分配的文件 ID（返回体里没有就为 <c>null</c>）。</summary>
-    Task<string?> UploadAsync(string filePath, string fileName, CancellationToken cancellationToken = default);
+    Task<string?> UploadAsync(byte[] content, string fileName, CancellationToken cancellationToken = default);
 
     /// <summary>把云文件下载到本地路径。</summary>
     Task DownloadAsync(string fileId, string destinationPath, CancellationToken cancellationToken = default);

@@ -62,6 +62,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     private CloudFileInfo? _remoteSettings;
     private DateTimeOffset? _remoteUpdatedAt;
     private bool _remoteIsNewer;
+    private bool _hasCloudFiles;
     private bool _isBusy;
     private string? _lastError;
 
@@ -140,6 +141,17 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             lock (_gate)
             {
                 return _remoteSettings is not null;
+            }
+        }
+    }
+
+    public bool HasCloudFiles
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _hasCloudFiles;
             }
         }
     }
@@ -251,6 +263,71 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         }
     }
 
+    /// <summary>
+    ///     清空 Corkboard 在云端的备份：整包、分片、清单、设置全删掉，本机数据一点不动。
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         只删自己这一套文件名（<see cref="CloudBackupFiles.AllManagedFiles" />）：平台上还可能有别的文件，
+    ///         清空云端不该把它们一起带走。中断的上传留下的孤儿分片也在删除范围内——它们占着配额，
+    ///         又凑不成一份能恢复的备份。
+    ///     </para>
+    ///     <para>
+    ///         簿记要一起清：删完之后本机已经没有「已同步」这回事，<c>LastSyncedAt</c> 留着会让界面显示一个
+    ///         早就不存在的同步时间，还会让「本机有没有改动」误判成不用再传。另外先把排着的自动上传掐掉，
+    ///         否则用户刚清完云端，几秒钟后那份备份又自己传回去了。
+    ///     </para>
+    ///     <para>
+    ///         部分失败要说话：删不掉的那几个文件留着，报错让用户再点一次，别装作全清干净了。
+    ///     </para>
+    /// </remarks>
+    public async Task ClearCloudAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureSignedIn();
+        StopAutoUpload();
+        SetBusy(true);
+        try
+        {
+            var files = await _client.ListFilesAsync(cancellationToken);
+            var targets = CloudBackupFiles.AllManagedFiles(files);
+            var failed = 0;
+
+            foreach (var file in targets)
+            {
+                try
+                {
+                    await _client.DeleteAsync(file.FileId, cancellationToken);
+                }
+                catch (Exception exception) when (exception is CloudStorageException or HttpRequestException)
+                {
+                    failed++;
+                    _logger?.LogWarning(exception, "清空云端时删不掉这个云文件：{FileName}。", file.FileName);
+                }
+            }
+
+            ResetSyncBookkeeping();
+
+            // 用量与文件清单要重查一遍（云端已经空了，界面上的占用不能还停在删之前）。
+            // 这一步失败不该盖掉「已经删完了」这个事实，所以只记日志。
+            await SafeCheckAsync(false, cancellationToken);
+
+            _logger?.LogInformation("已清空云端备份（{Count} 个文件，{Failed} 个没删掉）。", targets.Count, failed);
+
+            if (failed > 0)
+                throw new CloudStorageException("delete_failed",
+                    $"有 {failed} 个云文件没删掉，稍后再点一次「清空云端」");
+        }
+        catch (Exception exception)
+        {
+            RecordError(exception);
+            throw;
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -322,6 +399,8 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             scope.HasFlag(CloudSyncScope.Board) ? board?.UpdatedAt : null,
             scope.HasFlag(CloudSyncScope.Settings) ? settings?.UpdatedAt : null);
 
+        var hasCloudFiles = CloudBackupFiles.AllManagedFiles(files).Count > 0;
+
         lock (_gate)
         {
             _usage = usage;
@@ -329,6 +408,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             _remoteSettings = settings;
             _remoteUpdatedAt = Later(board?.UpdatedAt, settings?.UpdatedAt);
             _remoteIsNewer = !assumeSynced && IsRemoteNewer(remote);
+            _hasCloudFiles = hasCloudFiles;
         }
 
         NotifyState();
@@ -422,22 +502,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             var settingsUploaded = false;
 
             if (scope.HasFlag(CloudSyncScope.Board))
-            {
-                var archivePath = Path.Combine(work, CloudBackupFiles.BoardArchiveName);
-                var manifest = new CloudBackupManifest(ProductName, GlobalConstants.Version, GlobalConstants.PlatformId,
-                    DateTimeOffset.Now);
-                CloudBackupArchive.Create(BoardDirectory, archivePath, manifest);
-
-                // 压缩包必须先变成 base64 文本：云存储会把上传的字节按 UTF-8 解码一遍，二进制传上去就坏了。
-                var uploadPath = Path.Combine(work, CloudBackupFiles.BoardCloudName);
-                await CloudBackupPayload.WriteEncodedAsync(archivePath, uploadPath, cancellationToken)
-                    .ConfigureAwait(false);
-
-                var fileId = await _client.UploadAsync(uploadPath, CloudBackupFiles.BoardCloudName, cancellationToken)
-                    .ConfigureAwait(false);
-                await DeleteReplacedAsync(CloudBackupFiles.AllBoardArchives(existing), fileId, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+                await BackupBoardAsync(existing, work, cancellationToken).ConfigureAwait(false);
 
             if (scope.HasFlag(CloudSyncScope.Settings))
             {
@@ -445,11 +510,14 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
                 if (File.Exists(path))
                 {
                     var stripped = CloudSyncExclusions.StripForUpload(await File.ReadAllTextAsync(path, cancellationToken));
-                    var backupPath = Path.Combine(work, CloudBackupFiles.SettingsFileName);
-                    await File.WriteAllTextAsync(backupPath, stripped, cancellationToken);
+                    var replaced = CloudBackupFiles.AllSettingsFiles(existing).ToList();
+                    var bytes = Encoding.UTF8.GetBytes(stripped);
 
-                    var fileId = await _client.UploadAsync(backupPath, CloudBackupFiles.SettingsFileName, cancellationToken);
-                    await DeleteReplacedAsync(CloudBackupFiles.AllSettingsFiles(existing), fileId, cancellationToken);
+                    // 上传前的保底：算上会被顶掉的旧件还装不下，就别白跑一趟请求。
+                    EnsureQuotaForUpload(bytes.LongLength, TotalSize(replaced));
+
+                    var fileId = await _client.UploadAsync(bytes, CloudBackupFiles.SettingsFileName, cancellationToken);
+                    await DeleteReplacedAsync(replaced, fileId, cancellationToken);
                     settingsUploaded = true;
                 }
             }
@@ -463,13 +531,162 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         }
     }
 
+    /// <summary>
+    ///     传作业板备份：压缩包切成几片逐片上传，清单最后传。
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         为什么要分片：云函数的请求体上限约 1 MiB，整包 base64 之后很容易撞上；作业里的图片是以
+    ///         data URI 嵌在正文里的，几篇带图的作业就能到几十 MB。分片之后单次请求固定几百 KB。
+    ///     </para>
+    ///     <para>
+    ///         顺序是刻意的：清单在，这份备份才算完整。中途失败就把这次已经传上去的文件全删掉——
+    ///         上一次的备份原封不动，云端也不会留下半份备份骗过下一次恢复。
+    ///     </para>
+    /// </remarks>
+    private async Task BackupBoardAsync(IReadOnlyList<CloudFileInfo> existing, string work,
+        CancellationToken cancellationToken)
+    {
+        var archivePath = Path.Combine(work, CloudBackupFiles.BoardArchiveName);
+        var archiveManifest = new CloudBackupManifest(ProductName, GlobalConstants.Version, GlobalConstants.PlatformId,
+            DateTimeOffset.Now);
+        CloudBackupArchive.Create(BoardDirectory, archivePath, archiveManifest);
+
+        var payload = await File.ReadAllBytesAsync(archivePath, cancellationToken).ConfigureAwait(false);
+        if (payload.LongLength > CloudBackupPackage.MaxArchiveBytes)
+        {
+            throw new CloudStorageException("payload_too_large",
+                $"作业板备份有 {CloudStorageFormat.Bytes(payload.LongLength)}，" +
+                $"超过云端备份上限 {CloudStorageFormat.Bytes(CloudBackupPackage.MaxArchiveBytes)}");
+        }
+
+        var parts = CloudBackupPackage.Slice(payload);
+        var manifest = CloudBackupPackage.BuildManifest(
+            CloudBackupPackage.CreateBackupId(DateTimeOffset.Now),
+            parts,
+            CloudBackupPackage.DefaultPartBytes,
+            [BoardDirectoryName],
+            DateTimeOffset.Now,
+            GlobalConstants.Version,
+            CloudBackupFiles.BoardArchiveName,
+            payload);
+
+        // 上传前的保底：这次要占的空间，减掉会被顶掉的旧件之后还装不下就别发请求。
+        var previous = CloudBackupFiles.AllBoardFiles(existing).ToList();
+        EnsureQuotaForUpload(payload.LongLength, TotalSize(previous));
+
+        await UploadPackageAsync(manifest, parts, cancellationToken).ConfigureAwait(false);
+        await DeleteBoardBackupsExceptAsync(previous, manifest, cancellationToken).ConfigureAwait(false);
+        _logger?.LogInformation("已上传作业板云备份 {BackupId}（{Bytes} 字节，{Parts} 片）。",
+            manifest.BackupId, payload.LongLength, parts.Count);
+    }
+
+    /// <summary>按顺序传分片、最后传清单；任何一步出错就把这次已经传上去的全删掉。</summary>
+    private async Task UploadPackageAsync(CloudBackupPackageManifest manifest, IReadOnlyList<byte[]> parts,
+        CancellationToken cancellationToken)
+    {
+        var uploaded = new List<string>();
+        try
+        {
+            for (var index = 0; index < parts.Count; index++)
+            {
+                var entry = manifest.Parts[index];
+                var fileId = await _client.UploadAsync(parts[index], entry.Name, cancellationToken).ConfigureAwait(false);
+                if (fileId is not null)
+                    uploaded.Add(fileId);
+
+                _logger?.LogDebug("已上传作业板备份分片 {Index}/{Count}（{Name}）。", entry.Index, parts.Count,
+                    entry.Name);
+            }
+
+            var json = Encoding.UTF8.GetBytes(CloudBackupPackage.SerializeManifest(manifest));
+            var manifestId = await _client
+                .UploadAsync(json, CloudBackupPackage.BuildManifestName(manifest.BackupId), cancellationToken)
+                .ConfigureAwait(false);
+            if (manifestId is not null)
+                uploaded.Add(manifestId);
+        }
+        catch
+        {
+            await RollbackAsync(uploaded, cancellationToken).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>上传失败后的收尾：把这次传上去的文件删掉，别在云端留下半份备份。</summary>
+    private async Task RollbackAsync(IEnumerable<string> fileIds, CancellationToken cancellationToken)
+    {
+        foreach (var fileId in fileIds)
+        {
+            try
+            {
+                await _client.DeleteAsync(fileId, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is CloudStorageException or HttpRequestException)
+            {
+                _logger?.LogDebug(exception, "回滚云备份文件失败：{FileId}。", fileId);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     这次上传成功之后，把云端其它的作业板备份清掉：上一代的分片与清单、更早的老格式整包、
+    ///     以及历史上中断留下的残留分片。清单在恢复时是会校验的，所以这些都不会被误认成一份完整备份。
+    /// </summary>
+    private async Task DeleteBoardBackupsExceptAsync(IEnumerable<CloudFileInfo> previous,
+        CloudBackupPackageManifest manifest, CancellationToken cancellationToken)
+    {
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            CloudBackupPackage.BuildManifestName(manifest.BackupId)
+        };
+        foreach (var part in manifest.Parts)
+            keep.Add(part.Name);
+
+        foreach (var file in previous)
+        {
+            if (keep.Contains(file.FileName))
+                continue;
+
+            try
+            {
+                await _client.DeleteAsync(file.FileId, cancellationToken).ConfigureAwait(false);
+            }
+            catch (CloudStorageException exception)
+            {
+                _logger?.LogDebug(exception, "云端旧备份没删掉，不影响这次备份。");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     上传前的保底：把这次要传的体积和被顶掉的旧件一起算，装不下就不发请求，直接告诉用户还差多少。
+    ///     用量还没取到（总容量为 0）时不拦，交给服务端的配额错误说话。
+    /// </summary>
+    private void EnsureQuotaForUpload(long payloadBytes, long freedBytes)
+    {
+        var usage = Usage;
+        if (usage.TotalStorage <= 0)
+            return;
+
+        var needed = payloadBytes - freedBytes;
+        if (needed <= 0 || needed <= usage.AvailableStorage)
+            return;
+
+        throw new CloudStorageException("storage_exceeded",
+            $"云端空间不够了：这次要传 {CloudStorageFormat.Bytes(payloadBytes)}，" +
+            $"云端只剩 {CloudStorageFormat.Bytes(usage.AvailableStorage)}");
+    }
+
+    private static long TotalSize(IEnumerable<CloudFileInfo> files) => files.Sum(file => file.Size);
+
     private async Task RestoreCoreAsync(CloudSyncScope scope, CancellationToken cancellationToken)
     {
         var files = await _client.ListFilesAsync(cancellationToken);
-        var boardFile = CloudBackupFiles.FindBoard(files);
+        var boardBackup = CloudBackupFiles.ReadBoardBackup(files);
         var settingsFile = CloudBackupFiles.FindSettings(files);
 
-        var wantBoard = scope.HasFlag(CloudSyncScope.Board) && boardFile is not null;
+        var wantBoard = scope.HasFlag(CloudSyncScope.Board) && boardBackup.HasAny;
         var wantSettings = scope.HasFlag(CloudSyncScope.Settings) && settingsFile is not null;
         if (!wantBoard && !wantSettings)
             throw new CloudStorageException("file_not_found", "云端还没有可恢复的备份");
@@ -480,23 +697,19 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         {
             if (wantBoard)
             {
-                // 用自己拼的文件名落盘：云端的 filename 是服务端数据，不能直接拿去拼路径。
-                var isBase64 = CloudBackupFiles.IsBase64BoardArchive(boardFile!.FileName);
-                var downloadPath = Path.Combine(work, "board-download" + (isBase64 ? CloudBackupFiles.Base64Suffix : ".zip"));
-                await _client.DownloadAsync(boardFile.FileId, downloadPath, cancellationToken).ConfigureAwait(false);
-
                 var archivePath = Path.Combine(work, CloudBackupFiles.BoardArchiveName);
                 try
                 {
-                    if (isBase64)
+                    if (boardBackup.Manifest is not null)
                     {
-                        await CloudBackupPayload.WriteDecodedAsync(downloadPath, archivePath, cancellationToken)
+                        await DownloadPackageAsync(boardBackup, archivePath, work, cancellationToken)
                             .ConfigureAwait(false);
                     }
                     else
                     {
-                        // 兼容没加 base64 之前传上去的老件：它多半已经被云端按 UTF-8 弄坏了。
-                        File.Move(downloadPath, archivePath, true);
+                        // 老格式：一整包传上去的那份，还没有清单可以校验。
+                        await DownloadLegacyBoardAsync(boardBackup, archivePath, work, cancellationToken)
+                            .ConfigureAwait(false);
                     }
 
                     // 先解到临时目录：包是坏的、或者里面没有作业板数据，都还没碰到现有数据。
@@ -552,6 +765,64 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         _logger?.LogInformation("已从云端恢复备份（{Scope}）。", scope);
     }
 
+    /// <summary>
+    ///     按清单把作业板备份下载回来：清单 → 逐个分片 → 拼接并校验摘要，最后把压缩包写到
+    ///     <paramref name="archivePath" />。
+    /// </summary>
+    private async Task DownloadPackageAsync(CloudBoardBackup boardBackup, string archivePath, string work,
+        CancellationToken cancellationToken)
+    {
+        var manifestPath = Path.Combine(work, "board-manifest.json");
+        await _client.DownloadAsync(boardBackup.Manifest!.FileId, manifestPath, cancellationToken)
+            .ConfigureAwait(false);
+
+        var manifest = CloudBackupPackage.DeserializeManifest(await File.ReadAllTextAsync(manifestPath, cancellationToken))
+                       ?? throw new CloudStorageException("invalid_backup", "云端的作业板备份清单读不出来，可能已经损坏");
+        CloudBackupPackage.ValidateManifest(manifest);
+
+        var missing = CloudBackupPackage.MissingParts(manifest, boardBackup.Parts);
+        if (missing.Count > 0)
+        {
+            throw new CloudStorageException("incomplete_backup",
+                $"云端的作业板备份不完整（少了 {missing.Count} 片），重新点一次「立即备份」就好");
+        }
+
+        var byName = boardBackup.Parts.ToDictionary(file => file.FileName, StringComparer.OrdinalIgnoreCase);
+        var payloads = new List<byte[]>(manifest.Parts.Count);
+        for (var index = 0; index < manifest.Parts.Count; index++)
+        {
+            var entry = manifest.Parts[index];
+            var partPath = Path.Combine(work, $"board-part-{entry.Index:D2}");
+            await _client.DownloadAsync(byName[entry.Name].FileId, partPath, cancellationToken).ConfigureAwait(false);
+            payloads.Add(await File.ReadAllBytesAsync(partPath, cancellationToken).ConfigureAwait(false));
+        }
+
+        await File.WriteAllBytesAsync(archivePath, CloudBackupPackage.MergeAndVerify(manifest, payloads), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>恢复最早那种单文件备份（可能还是被云端按 UTF-8 弄坏过的那份，尽量抢救）。</summary>
+    private async Task DownloadLegacyBoardAsync(CloudBoardBackup boardBackup, string archivePath, string work,
+        CancellationToken cancellationToken)
+    {
+        var file = boardBackup.NewestLegacy
+                   ?? throw new CloudStorageException("file_not_found", "云端还没有可恢复的备份");
+
+        // 用自己拼的文件名落盘：云端的 filename 是服务端数据，不能直接拿去拼路径。
+        var isBase64 = CloudBackupFiles.IsBase64BoardArchive(file.FileName);
+        var downloadPath = Path.Combine(work, "board-download" + (isBase64 ? CloudBackupFiles.Base64Suffix : ".zip"));
+        await _client.DownloadAsync(file.FileId, downloadPath, cancellationToken).ConfigureAwait(false);
+
+        if (!isBase64)
+        {
+            // 没加 base64 之前传上去的老件，原样搬过去（多半已经坏了，交给解压那一步报错）。
+            File.Move(downloadPath, archivePath, true);
+            return;
+        }
+
+        await CloudBackupPayload.WriteDecodedAsync(downloadPath, archivePath, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>同步成功后的簿记：记时间（必要时记设置摘要），并把自己触发的配置事件挡掉。</summary>
     private void CommitSyncState(bool recordSettingsHash)
     {
@@ -570,6 +841,39 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
 
         lock (_gate)
         {
+            _remoteIsNewer = false;
+            _lastError = null;
+        }
+
+        NotifyState();
+    }
+
+    /// <summary>
+    ///     清空云端之后的簿记：本机不再有任何「已同步」状态，云端那份清单也一起作废。
+    /// </summary>
+    /// <remarks>
+    ///     写配置同样要挡掉 <see cref="ConfigHandlerBase{T}.Saved" />：这两笔是清空动作的收尾，
+    ///     不是用户改了设置，不能顺手拉起一次自动上传。
+    /// </remarks>
+    private void ResetSyncBookkeeping()
+    {
+        _synchronizing = true;
+        try
+        {
+            var config = Config;
+            config.LastSyncedAt = null;
+            config.LastSettingsHash = null;
+        }
+        finally
+        {
+            _synchronizing = false;
+        }
+
+        lock (_gate)
+        {
+            _remoteBoard = null;
+            _remoteSettings = null;
+            _remoteUpdatedAt = null;
             _remoteIsNewer = false;
             _lastError = null;
         }
@@ -738,6 +1042,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             _remoteSettings = null;
             _remoteUpdatedAt = null;
             _remoteIsNewer = false;
+            _hasCloudFiles = false;
             _lastError = null;
         }
 

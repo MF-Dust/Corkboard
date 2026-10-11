@@ -118,6 +118,35 @@ public class CloudStorageTests
     }
 
     /// <summary>
+    ///     「清空云端」要删的是 Corkboard 自己传的备份：整包、分片、清单、设置都在内，
+    ///     平台上别人的文件（不认识的文件名）一律不碰。
+    /// </summary>
+    [Fact]
+    public void Files_AllManagedFilesCoversBackupsOnly()
+    {
+        const string json = """
+        {
+          "files": [
+            { "file_id": "cf_photo", "filename": "photo.png", "size": 100, "updated_at": "2026-04-13T08:00:00.000Z" },
+            { "file_id": "cf_part_a", "filename": "corkboard-board-20260413-080000-0f1e2d3c-p01of02.part", "size": 3072, "updated_at": "2026-04-13T08:00:00.000Z" },
+            { "file_id": "cf_part_b", "filename": "corkboard-board-20260413-080000-0f1e2d3c-p02of02.part", "size": 512, "updated_at": "2026-04-13T08:00:00.000Z" },
+            { "file_id": "cf_manifest", "filename": "corkboard-board-20260413-080000-0f1e2d3c-manifest.json", "size": 700, "updated_at": "2026-04-13T08:00:01.000Z" },
+            { "file_id": "cf_legacy", "filename": "corkboard-board.zip", "size": 2048, "updated_at": "2026-04-12T08:00:00.000Z" },
+            { "file_id": "cf_settings", "filename": "corkboard-settings.json", "size": 1024, "updated_at": "2026-04-13T08:00:02.000Z" }
+          ],
+          "total": 6,
+          "has_more": false
+        }
+        """;
+
+        var files = CloudFileInfo.ParseList(json);
+
+        Assert.Equal(new[] { "cf_part_a", "cf_part_b", "cf_manifest", "cf_legacy", "cf_settings" },
+            CloudBackupFiles.AllManagedFiles(files).Select(file => file.FileId));
+        Assert.False(CloudBackupFiles.IsManagedFile(files[0]));
+    }
+
+    /// <summary>
     ///     二进制备份走 base64：云存储会把上传的字节按 UTF-8 解码（非法字节变 U+FFFD），
     ///     所以压缩包必须先变成纯 ASCII 文本再传，取回来还能原样还原。
     /// </summary>

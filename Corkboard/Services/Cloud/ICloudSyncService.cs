@@ -30,6 +30,9 @@ public interface ICloudSyncService
     /// <summary>云端有设置备份。</summary>
     bool HasSettingsBackup { get; }
 
+    /// <summary>云端有 Corkboard 自己传上去的备份文件（含中断的上传留下的孤儿分片）。</summary>
+    bool HasCloudFiles { get; }
+
     /// <summary>云端备份的最近更新时间。</summary>
     DateTimeOffset? RemoteUpdatedAt { get; }
 
@@ -53,4 +56,7 @@ public interface ICloudSyncService
 
     /// <summary>用云端备份覆盖本机数据（调用方负责先让用户确认）。</summary>
     Task RestoreAsync(CloudSyncScope scope, CancellationToken cancellationToken = default);
+
+    /// <summary>把 Corkboard 在云端的备份全部删掉（调用方负责先让用户确认；本机数据不动）。</summary>
+    Task ClearCloudAsync(CancellationToken cancellationToken = default);
 }

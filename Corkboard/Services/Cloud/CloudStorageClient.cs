@@ -1,7 +1,8 @@
 using System.Net;
-using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Corkboard.Core;
 using Corkboard.Core.Services.Cloud;
 using Corkboard.Services.Auth;
@@ -71,27 +72,50 @@ public sealed class CloudStorageClient(
         return files;
     }
 
-    public async Task<string?> UploadAsync(string filePath, string fileName, CancellationToken cancellationToken = default)
+    /// <summary>
+    ///     上传一份文件。<paramref name="content" /> 直接给字节，用 base64 装进 JSON 体里传。
+    ///     <para>
+    ///         为什么不用 multipart：服务端只认带引号的字段名（手工拼引号才通），而且云存储会把收到的
+    ///     字节按 UTF-8 解码一遍、二进制走 multipart 会被弄坏。对方的 base64 JSON 通道没有这两个毛病。
+    ///     </para>
+    /// </summary>
+    public async Task<string?> UploadAsync(byte[] content, string fileName, CancellationToken cancellationToken = default)
     {
-        var bytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
-
-        using var response = await SendAsync(() =>
+        ArgumentNullException.ThrowIfNull(content);
+        if (content.LongLength > CloudBackupPackage.MaxUploadBytes)
         {
-            var content = new MultipartFormDataContent();
-            AddPart(content, new StringContent(PlatformId), "client_id");
-            AddPart(content, new StringContent(fileName), "filename");
-            AddPart(
-                content,
-                new ByteArrayContent(bytes) { Headers = { ContentType = new MediaTypeHeaderValue("application/octet-stream") } },
-                "file",
-                fileName);
-            return new HttpRequestMessage(HttpMethod.Post, SectlAuthEndpoints.CloudUploadUrl) { Content = content };
-        }, cancellationToken).ConfigureAwait(false);
+            throw new CloudStorageException("payload_too_large",
+                $"这次要传 {CloudStorageFormat.Bytes(content.LongLength)}，" +
+                $"超过单次上传上限 {CloudStorageFormat.Bytes(CloudBackupPackage.MaxUploadBytes)}");
+        }
+
+        var payload = new UploadRequest(PlatformId, new UploadFile(fileName, "application/octet-stream",
+            content.LongLength, "data:application/octet-stream;base64," + Convert.ToBase64String(content)));
+
+        using var response = await SendAsync(
+                () => new HttpRequestMessage(HttpMethod.Post, SectlAuthEndpoints.CloudUploadUrl)
+                {
+                    Content = JsonContent.Create(payload, options: JsonOptions)
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        logger?.LogInformation("已上传云备份 {FileName}（{Size} 字节）。", fileName, bytes.Length);
+        logger?.LogInformation("已上传云备份 {FileName}（{Size} 字节）。", fileName, content.LongLength);
         return ReadString(body, "file_id");
     }
+
+    /// <summary>上传请求体（<c>POST /api/cloud/upload</c> 的 base64 形态）。</summary>
+    private sealed record UploadRequest(
+        [property: JsonPropertyName("client_id")] string ClientId,
+        [property: JsonPropertyName("file")] UploadFile File);
+
+    /// <summary>上传请求体里的文件条目。</summary>
+    private sealed record UploadFile(
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("type")] string Type,
+        [property: JsonPropertyName("size")] long Size,
+        [property: JsonPropertyName("data")] string Data);
 
     public async Task DownloadAsync(string fileId, string destinationPath, CancellationToken cancellationToken = default)
     {
@@ -190,22 +214,6 @@ public sealed class CloudStorageClient(
         "invalid_request" => "云端拒绝了这次请求",
         _ => string.IsNullOrWhiteSpace(description) ? "云端暂时不可用，稍后再试" : description
     };
-
-    /// <summary>加一个 multipart 字段。</summary>
-    /// <remarks>
-    /// <c>MultipartFormDataContent</c> 默认把 <c>name</c>/<c>filename</c> 写成不带引号的形式，还会多带一个
-    /// <c>filename*=utf-8''</c>；云端解析不了这种形状，只回 <c>400 invalid_request / No file data received</c>，
-    /// 所以这里手动把两个参数都带上引号，与服务端实际接受的形状保持一致。
-    /// </remarks>
-    private static void AddPart(MultipartFormDataContent content, HttpContent part, string name, string? fileName = null)
-    {
-        var disposition = new ContentDispositionHeaderValue("form-data") { Name = $"\"{name}\"" };
-        if (fileName is not null)
-            disposition.FileName = $"\"{fileName}\"";
-
-        part.Headers.ContentDisposition = disposition;
-        content.Add(part);
-    }
 
     private static string? ReadString(string json, string name)
     {
