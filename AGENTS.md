@@ -509,5 +509,16 @@ dotnet run --project Corkboard.Desktop\Corkboard.Desktop.csproj
 - `NuGet.config` 只声明公共源（nuget.org + ClassIsland MyGet）。**不要**把开发机专属的
   `fallbackPackageFolders` 提交进去（NuGet 遇到不存在的目录会直接 NU1301，CI 与其他机器都还原不了）。
   本机想复用包缓存用环境变量 `NUGET_FALLBACK_PACKAGES`。
+- **测试不要依赖机器语言**：`.github/workflows/Build.yml` 跑在 en-US 的 Windows runner 上，而种子科目这类
+  默认值取自本地化资源（`CR.Board_Seed_Subject_*`）。写死中文的断言在 CI 上必挂：`SetSubjectOrder`
+  会把「不在科目清单里」的条目当已删除的科目清掉（曾因此红了 5 天）。改完测试在本机这样复现 CI 的语言环境：
+  `Corkboard.Core.Tests\bin\Release\net10.0\Corkboard.Core.Tests.exe -culture en-US`
+  （xUnit v3 的 runner 自带 `-culture` 开关，可用 `default` / `invariant` / `en-US`）。
+- **发布走 `.github/workflows/Publish.yml`**（只有 `workflow_dispatch`，要手填一个**已存在**的发布标签）：
+  校验标签形态 → 全量 checkout 该标签 → `dotnet publish` 自包含 win-x64 → 打包成
+  `Corkboard-<tag>-win-x64-portable.zip` → 上传产物 → 建**草稿** Release（发布说明带大小与 SHA256）。
+  两个坑：①job 级环境变量叫 `RELEASE_TAG` 而不是 `VERSION`——MSBuild 会把环境变量当成同名属性读进去，
+  `VERSION=v0.2.0` 会让 `dotnet restore` 直接报「"v0.2.0" 不是有效的版本字符串」；②`actions/checkout`
+  必须 `fetch-depth: 0`，因为版本号是构建期由 git 提供的（`GitInfo.props` 跑 `git describe`，浅克隆可能没有 tag）。
 - SECTL 平台标识（`GlobalConstants.PlatformId`，用于版本上报）与 OAuth 客户端 ID
   （`Corkboard/Services/Auth/SectlAuthEndpoints.cs`）是两个不同的值，不要混用。

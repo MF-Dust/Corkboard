@@ -96,6 +96,15 @@ jobs:
             throw "发布目录里没有 Corkboard.Desktop.exe：$publishRoot"
           }
 
+          # 清掉调试符号：-p:DebugType=None 只管我们自己那几个工程，SkiaSharp / HarfBuzz 这类包照样把
+          # .pdb 拷进发布目录（实测 libSkiaSharp.pdb 一个就 80 MB，打包体积从 126 MB 掉到 46 MB）。
+          $pdbs = @(Get-ChildItem $publishRoot -Recurse -File -Filter *.pdb)
+          if ($pdbs.Count -gt 0) {
+            $pdbSize = ($pdbs | Measure-Object -Property Length -Sum).Sum / 1MB
+            $pdbs | Remove-Item -Force
+            Write-Host ("已清掉 {0} 个调试符号文件（{1:N1} MB）" -f $pdbs.Count, $pdbSize)
+          }
+
           # 包内容标记：解压后一眼能看出这是哪个平台、哪种发布形态，照上游的 SecRandom.package.json。
           @{
             schemaVersion = 1
