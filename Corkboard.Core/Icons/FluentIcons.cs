@@ -57,4 +57,7 @@ public static class FluentIcons
 
     /// <summary>设置里的账号页，兼作未登录时的头像占位。码位来自上游图标映射表 <c>person_20_filled</c>。</summary>
     public const string PersonFilled = "\uECE4";
+
+    /// <summary>设置里的云同步页。码位来自上游图标映射表 <c>cloud_20_filled</c>。</summary>
+    public const string CloudFilled = "\uE4DB";
 }

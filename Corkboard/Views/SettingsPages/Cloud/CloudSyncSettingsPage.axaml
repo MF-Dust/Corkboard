@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:fa="using:FluentAvalonia.UI.Controls"
+             xmlns:vm="using:Corkboard.ViewModels.SettingsPages"
+             xmlns:core="using:Corkboard.Core.Langs.Common"
+             xmlns:icons="using:Corkboard.Core.Icons"
+             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="450"
+             x:Class="Corkboard.Views.SettingsPages.Cloud.CloudSyncSettingsPage"
+             x:DataType="vm:CloudSyncSettingsPageViewModel">
+    <ScrollViewer>
+        <StackPanel Classes="page-container">
+            <!-- 设置壳不画标题：标题画在 page-container 里，才会和设置卡同宽同左边缘、跟着卡片滚动。 -->
+            <TextBlock Margin="0 4 0 0"
+                       FontWeight="Normal"
+                       Text="{x:Static core:Resources.Settings_Cloud_Title}"
+                       Theme="{StaticResource TitleTextBlockStyle}" />
+
+            <!--
+                没登录就不给开：云同步靠账号的令牌上传，开了也没法用。
+                卡本身留着（用户得先知道有这个功能），只把开关按不动并说明原因。
+            -->
+            <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Cloud_Enable}"
+                                   Description="{x:Static core:Resources.Settings_Cloud_EnableDescription}">
+                <fa:FASettingsExpander.IconSource>
+                    <fa:FAFontIconSource Glyph="{x:Static icons:FluentIcons.CloudFilled}"
+                                         FontFamily="{DynamicResource FluentSystemIconsResizeable}" />
+                </fa:FASettingsExpander.IconSource>
+                <fa:FASettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{x:Static core:Resources.Settings_Cloud_NeedSignIn}"
+                                   IsVisible="{Binding !IsSignedIn}" />
+                        <ToggleSwitch IsChecked="{Binding Cloud.Enabled}"
+                                      IsEnabled="{Binding IsSignedIn}" />
+                    </StackPanel>
+                </fa:FASettingsExpander.Footer>
+            </fa:FASettingsExpander>
+
+            <!-- 同步内容：默认两份都同步，用户可以只要其中一份。 -->
+            <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Cloud_Scope}"
+                                   Description="{x:Static core:Resources.Settings_Cloud_ScopeDescription}"
+                                   IsVisible="{Binding IsSignedIn}"
+                                   IsExpanded="True">
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Cloud_Board}"
+                                           Description="{x:Static core:Resources.Settings_Cloud_BoardDescription}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Cloud.SyncBoard}" />
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
+
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Cloud_Settings}"
+                                           Description="{x:Static core:Resources.Settings_Cloud_SettingsDescription}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Cloud.SyncSettings}" />
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
+
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Cloud_AutoPull}"
+                                           Description="{x:Static core:Resources.Settings_Cloud_AutoPullDescription}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <ToggleSwitch IsChecked="{Binding Cloud.AutoPull}" />
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
+            </fa:FASettingsExpander>
+
+            <!-- 用量：一行看整个账号，一行看本平台（Corkboard 的配额是平台维度的）。 -->
+            <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Cloud_Storage}"
+                                   Description="{x:Static core:Resources.Settings_Cloud_StorageDescription}"
+                                   IsVisible="{Binding IsSignedIn}"
+                                   IsExpanded="True">
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Cloud_CloudUsage}"
+                                           Description="{x:Static core:Resources.Settings_Cloud_CloudUsageDescription}"
+                                           IsVisible="{Binding HasUsage}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <StackPanel Spacing="4" MinWidth="220" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CloudUsageText}" />
+                            <ProgressBar Height="4" Minimum="0" Maximum="100"
+                                         Value="{Binding UsagePercent}" />
+                            <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Text="{Binding CloudAvailableText}" />
+                        </StackPanel>
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
+
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Cloud_PlatformUsage}"
+                                           Description="{x:Static core:Resources.Settings_Cloud_PlatformUsageDescription}"
+                                           IsVisible="{Binding HasUsage}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <TextBlock VerticalAlignment="Center" Text="{Binding PlatformUsageText}" />
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
+            </fa:FASettingsExpander>
+
+            <!-- 备份与恢复：自动同步之外的兜底按钮，以及「云端更新了」和出错的提示。 -->
+            <fa:FASettingsExpander Header="{x:Static core:Resources.Settings_Cloud_Backup}"
+                                   Description="{x:Static core:Resources.Settings_Cloud_BackupDescription}"
+                                   IsVisible="{Binding IsSignedIn}">
+                <fa:FASettingsExpander.Footer>
+                    <StackPanel Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <!-- FluentAvalonia 3.0.2 / Avalonia 12 里没有 ProgressRing，用细进度条代替。 -->
+                            <ProgressBar Width="80" Height="4" VerticalAlignment="Center"
+                                         IsIndeterminate="True"
+                                         IsVisible="{Binding IsBusy}" />
+                            <Button Classes="accent"
+                                    Content="{x:Static core:Resources.Settings_Cloud_BackupNow}"
+                                    Command="{Binding BackupNowCommand}"
+                                    IsEnabled="{Binding CanSync}" />
+                            <!-- 会覆盖本机数据，先弹确认框（见 code-behind 的 Restore_OnClick）。 -->
+                            <Button Content="{x:Static core:Resources.Settings_Cloud_Restore}"
+                                    Click="Restore_OnClick"
+                                    IsEnabled="{Binding CanRestore}" />
+                            <Button Content="{x:Static core:Resources.Settings_Cloud_Refresh}"
+                                    Command="{Binding RefreshCommand}"
+                                    IsEnabled="{Binding CanSync}" />
+                        </StackPanel>
+
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{Binding LastSyncedText}" />
+
+                        <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{x:Static core:Resources.Settings_Cloud_RemoteNewer}"
+                                   IsVisible="{Binding ShowRemoteNewer}" />
+
+                        <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                   Text="{Binding ErrorMessage}"
+                                   IsVisible="{Binding HasError}" />
+                    </StackPanel>
+                </fa:FASettingsExpander.Footer>
+            </fa:FASettingsExpander>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -48,6 +48,23 @@ public static class SectlAuthEndpoints
     /// <summary>版本使用人数上报地址（服务端统计，载荷只含平台标识、版本与设备标识）。</summary>
     public const string VersionReportUrl = $"{ApiBaseUrl}/api/stats/version";
 
+    // ---------------------------------------------------------------- 云存储（云同步用）
+
+    /// <summary>云存储：文件列表（<c>GET</c>，带 <c>client_id</c>）。</summary>
+    public const string CloudFilesUrl = $"{ApiBaseUrl}/api/cloud/files";
+
+    /// <summary>云存储：上传文件（<c>POST multipart/form-data</c>）。</summary>
+    public const string CloudUploadUrl = $"{ApiBaseUrl}/api/cloud/upload";
+
+    /// <summary>云存储：账号与平台的空间占用（<c>GET</c>，带 <c>client_id</c>）。</summary>
+    public const string CloudUsageUrl = $"{ApiBaseUrl}/api/cloud/storage/usage";
+
+    /// <summary>云存储：单个文件的删除地址（<c>DELETE</c>，JSON 体里带 <c>client_id</c>）。</summary>
+    public static string CloudFileUrl(string fileId) => $"{CloudFilesUrl}/{Uri.EscapeDataString(fileId)}";
+
+    /// <summary>云存储：换临时下载地址（<c>GET</c>，返回体里的 <c>download_url</c> 才带文件内容）。</summary>
+    public static string CloudFileDownloadUrl(string fileId) => $"{CloudFileUrl(fileId)}/download";
+
     /// <summary>令牌文件在数据根下的相对路径段。</summary>
     public static readonly string[] TokenFileSegments = ["config", "sectl-auth.json"];
 

@@ -637,4 +637,103 @@
   <data name="Settings_Account_SignOutConfirmMessage" xml:space="preserve">
     <value>Signing out deletes the credentials stored on this device; you will need to sign in again to use account features</value>
   </data>
+  <data name="Settings_Cloud_Title" xml:space="preserve">
+    <value>Cloud sync</value>
+  </data>
+  <data name="Settings_Cloud_Description" xml:space="preserve">
+    <value>Back up your board and settings to the SECTL cloud after signing in</value>
+  </data>
+  <data name="Settings_Cloud_Enable" xml:space="preserve">
+    <value>Cloud sync</value>
+  </data>
+  <data name="Settings_Cloud_EnableDescription" xml:space="preserve">
+    <value>Back this device up to SECTL cloud storage and pick it up elsewhere</value>
+  </data>
+  <data name="Settings_Cloud_NeedSignIn" xml:space="preserve">
+    <value>Sign in with your SECTL account above to turn this on</value>
+  </data>
+  <data name="Settings_Cloud_Scope" xml:space="preserve">
+    <value>What to sync</value>
+  </data>
+  <data name="Settings_Cloud_ScopeDescription" xml:space="preserve">
+    <value>Choose the data that follows your account</value>
+  </data>
+  <data name="Settings_Cloud_Board" xml:space="preserve">
+    <value>Board</value>
+  </data>
+  <data name="Settings_Cloud_BoardDescription" xml:space="preserve">
+    <value>Notes and attachments, ready on any device you sign in to</value>
+  </data>
+  <data name="Settings_Cloud_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_Cloud_SettingsDescription" xml:space="preserve">
+    <value>Interface and board settings, window size and autostart stay here</value>
+  </data>
+  <data name="Settings_Cloud_AutoPull" xml:space="preserve">
+    <value>Auto pull</value>
+  </data>
+  <data name="Settings_Cloud_AutoPullDescription" xml:space="preserve">
+    <value>Take the cloud copy automatically when nothing changed here</value>
+  </data>
+  <data name="Settings_Cloud_Storage" xml:space="preserve">
+    <value>Cloud storage</value>
+  </data>
+  <data name="Settings_Cloud_StorageDescription" xml:space="preserve">
+    <value>Space left in the cloud and what this platform uses</value>
+  </data>
+  <data name="Settings_Cloud_CloudUsage" xml:space="preserve">
+    <value>Cloud space</value>
+  </data>
+  <data name="Settings_Cloud_CloudUsageDescription" xml:space="preserve">
+    <value>How much the whole account keeps in the cloud</value>
+  </data>
+  <data name="Settings_Cloud_PlatformUsage" xml:space="preserve">
+    <value>This platform</value>
+  </data>
+  <data name="Settings_Cloud_PlatformUsageDescription" xml:space="preserve">
+    <value>How much of the Corkboard quota is already used</value>
+  </data>
+  <data name="Settings_Cloud_Backup" xml:space="preserve">
+    <value>Backup and restore</value>
+  </data>
+  <data name="Settings_Cloud_BackupDescription" xml:space="preserve">
+    <value>Upload this device by hand, or overwrite it with a cloud backup</value>
+  </data>
+  <data name="Settings_Cloud_BackupNow" xml:space="preserve">
+    <value>Back up now</value>
+  </data>
+  <data name="Settings_Cloud_Restore" xml:space="preserve">
+    <value>Restore from cloud</value>
+  </data>
+  <data name="Settings_Cloud_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Settings_Cloud_LastSynced" xml:space="preserve">
+    <value>Last synced {0}</value>
+  </data>
+  <data name="Settings_Cloud_NeverSynced" xml:space="preserve">
+    <value>Not synced yet</value>
+  </data>
+  <data name="Settings_Cloud_RemoteNewer" xml:space="preserve">
+    <value>The cloud copy is newer, press restore to bring it down</value>
+  </data>
+  <data name="Settings_Cloud_RestoreConfirmTitle" xml:space="preserve">
+    <value>Restore from cloud</value>
+  </data>
+  <data name="Settings_Cloud_RestoreConfirmMessage" xml:space="preserve">
+    <value>The cloud backup overwrites matching data here, changes not uploaded yet are lost</value>
+  </data>
+  <data name="Settings_Cloud_Error" xml:space="preserve">
+    <value>Something went wrong</value>
+  </data>
+  <data name="Settings_Cloud_ErrorDescription" xml:space="preserve">
+    <value>Cloud sync did not go through, please try again later</value>
+  </data>
+  <data name="Settings_Cloud_UsageUsed" xml:space="preserve">
+    <value>{0} of {1} used</value>
+  </data>
+  <data name="Settings_Cloud_UsageAvailable" xml:space="preserve">
+    <value>{0} left</value>
+  </data>
 </root>

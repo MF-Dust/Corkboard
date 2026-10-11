@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Corkboard.Core.Models.SubConfigs.Board;
+using Corkboard.Core.Models.SubConfigs.Cloud;
 using Corkboard.Core.Models.SubConfigs.General;
 using Corkboard.Core.Models.SubConfigs.Personalized;
 using Corkboard.Shared;
@@ -20,6 +21,7 @@ public partial class MainConfigModel : ConfigBase
     [ObservableProperty] private GeneralSettingsConfig _general = new();
     [ObservableProperty] private AppearanceSettingsConfig _appearance = new();
     [ObservableProperty] private BoardSettingsConfig _boardSettings = new();
+    [ObservableProperty] private CloudSyncSettingsConfig _cloud = new();
 
     [JsonIgnore] public override string ConfigFilePath => Utils.GetFilePath("config", "settings.json");
 

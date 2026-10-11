@@ -19,7 +19,7 @@ public partial class AboutSettingsPageViewModel(
     public string Version => GlobalConstants.DisplayVersion;
 
     /// <summary>版权年份算到今年，免得每年手动改一次。</summary>
-    public string Copyright => $"Copyright (c) 2025-{DateTime.Now.Year} SECTL";
+    public string Copyright => $"Copyright (c) 2025-{DateTime.Now.Year} 思拓创联";
 
     /// <summary>提交号：用户报问题时报的这一串，对着仓库能定位到具体一版。</summary>
     public string Commit => GlobalConstants.CommitHash;

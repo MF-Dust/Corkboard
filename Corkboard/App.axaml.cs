@@ -30,6 +30,7 @@ using Corkboard.Platforms;
 using Corkboard.Platforms.Abstractions;
 using Corkboard.Services;
 using Corkboard.Services.Auth;
+using Corkboard.Services.Cloud;
 using Corkboard.Services.Desktop;
 using Corkboard.Services.Ipc;
 using Corkboard.Services.Ui;
@@ -41,6 +42,7 @@ using Corkboard.Views.MainPages;
 using Corkboard.Views.SettingsPages.About;
 using Corkboard.Views.SettingsPages.Account;
 using Corkboard.Views.SettingsPages.Board;
+using Corkboard.Views.SettingsPages.Cloud;
 using Corkboard.Views.SettingsPages.General;
 using Corkboard.Views.SettingsPages.Personalized;
 using CR = Corkboard.Core.Langs.Common.Resources;
@@ -151,6 +153,11 @@ public partial class App : Application
         // 版本使用人数上报：每次启动一次，尽力而为，失败只写日志（平台标识见 GlobalConstants.PlatformId）。
         services.AddHostedService<PlatformVersionReportService>();
 
+        // 云同步：把作业板与设置备份到思拓创联云存储。构造期就挂上配置与作业板的变化监听，
+        // 所以启动时必须解析一次（见 StartHostAsync 的 InitializeCloudSyncAsync）。
+        services.AddSingleton<ICloudStorageClient, CloudStorageClient>();
+        services.AddSingleton<ICloudSyncService, CloudSyncService>();
+
         // ClassIsland 通知通道：与抽取业务无关的通用 IPC 出口，连不上时按失败结果降级。
         services.AddSingleton<IClassIslandIpcConnection, ClassIslandIpcConnection>();
 
@@ -179,6 +186,7 @@ public partial class App : Application
         services.AddTransient<AppearanceSettingsPageViewModel>();
         services.AddTransient<AboutSettingsPageViewModel>();
         services.AddTransient<AccountSettingsPageViewModel>();
+        services.AddTransient<CloudSyncSettingsPageViewModel>();
 
         // 主页面标题的默认文案；用户可以在作业板设置里改成别的名字。
         services.AddMainPage<BoardPage>(CR.Board_Title);
@@ -190,6 +198,7 @@ public partial class App : Application
         services.AddSettingsPage<BoardSettingsPage>(CR.Settings_Board_Title);
         services.AddSettingsPage<AppearanceSettingsPage>(CR.Settings_Appearance_Title);
         services.AddSettingsPage<AccountSettingsPage>(CR.Settings_Account_Title);
+        services.AddSettingsPage<CloudSyncSettingsPage>(CR.Settings_Cloud_Title);
         // 「关于」沉在导航栏底部：位置由 AboutSettingsPage 上的 PageInfo(Location = Bottom) 决定，
         // 和这里注册在第几位无关（注册顺序只决定上半区那几项的先后）。
         services.AddSettingsPage<AboutSettingsPage>(CR.Settings_About_Title);
@@ -208,7 +217,9 @@ public partial class App : Application
             EnsureAutostartIntegration();
 
             // 账号会话恢复只影响登录态，失败不能拖住启动。
-            _ = RestoreAccountSessionAsync();
+            var accountSession = RestoreAccountSessionAsync();
+            // 云同步要用账号会话，所以串在它后面：已开启同步且已登录时查一遍云端。
+            _ = InitializeCloudSyncAsync(accountSession);
             // ClassIsland 通道探测同样是后台行为，结果只写日志。
             _ = ProbeClassIslandAsync();
 
@@ -256,6 +267,25 @@ public partial class App : Application
         catch (Exception exception)
         {
             IAppHost.TryGetService<ILogger<App>>()?.LogWarning(exception, "恢复账号会话失败。");
+        }
+    }
+
+    /// <summary>
+    ///     启动云同步：解析出服务（构造期会挂上配置与作业板的变化监听），再让它查一遍云端，
+    ///     必要时自动拉取。网络与云端问题都不能拖住启动，失败只写日志。
+    /// </summary>
+    private static async Task InitializeCloudSyncAsync(Task accountSession)
+    {
+        try
+        {
+            await accountSession.ConfigureAwait(false);
+
+            if (IAppHost.TryGetService<ICloudSyncService>() is { } cloud)
+                await cloud.InitializeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            IAppHost.TryGetService<ILogger<App>>()?.LogWarning(exception, "云同步初始化失败。");
         }
     }
 

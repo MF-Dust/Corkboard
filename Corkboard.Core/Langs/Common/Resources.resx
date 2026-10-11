@@ -577,7 +577,7 @@
     <value>喜欢的话可以支持一下作者</value>
   </data>
   <data name="Settings_About_Organization" xml:space="preserve">
-    <value>SECTL 思拓创联</value>
+    <value>思拓创联</value>
   </data>
   <data name="Settings_About_OrganizationDescription" xml:space="preserve">
     <value>Corkboard 所属的组织</value>
@@ -601,13 +601,13 @@
     <value>账号</value>
   </data>
   <data name="Settings_Account_Description" xml:space="preserve">
-    <value>登录 SECTL 组织账号后可使用需要账号的功能</value>
+    <value>登录思拓创联组织账号后可使用需要账号的功能</value>
   </data>
   <data name="Settings_Account_Profile" xml:space="preserve">
     <value>账号资料</value>
   </data>
   <data name="Settings_Account_ProfileDescription" xml:space="preserve">
-    <value>当前登录的 SECTL 账号</value>
+    <value>当前登录的思拓创联账号</value>
   </data>
   <data name="Settings_Account_SignedOut" xml:space="preserve">
     <value>未登录</value>
@@ -641,5 +641,104 @@
   </data>
   <data name="Settings_Account_SignOutConfirmMessage" xml:space="preserve">
     <value>退出后本机保存的登录凭据会被删除，需要重新登录才能继续使用账号功能</value>
+  </data>
+  <data name="Settings_Cloud_Title" xml:space="preserve">
+    <value>云同步</value>
+  </data>
+  <data name="Settings_Cloud_Description" xml:space="preserve">
+    <value>登录后可以把作业板与设置备份到思拓创联云端</value>
+  </data>
+  <data name="Settings_Cloud_Enable" xml:space="preserve">
+    <value>云同步</value>
+  </data>
+  <data name="Settings_Cloud_EnableDescription" xml:space="preserve">
+    <value>把本机数据备份到思拓创联云存储，换台设备也能接着用</value>
+  </data>
+  <data name="Settings_Cloud_NeedSignIn" xml:space="preserve">
+    <value>先在上面登录思拓创联账号才能开启</value>
+  </data>
+  <data name="Settings_Cloud_Scope" xml:space="preserve">
+    <value>同步内容</value>
+  </data>
+  <data name="Settings_Cloud_ScopeDescription" xml:space="preserve">
+    <value>选哪些数据跟着账号走</value>
+  </data>
+  <data name="Settings_Cloud_Board" xml:space="preserve">
+    <value>作业板</value>
+  </data>
+  <data name="Settings_Cloud_BoardDescription" xml:space="preserve">
+    <value>笔记与附件都传上去，换台设备打开就能看到</value>
+  </data>
+  <data name="Settings_Cloud_Settings" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="Settings_Cloud_SettingsDescription" xml:space="preserve">
+    <value>界面与作业板设置，窗口大小和开机自启只留本机</value>
+  </data>
+  <data name="Settings_Cloud_AutoPull" xml:space="preserve">
+    <value>自动拉取</value>
+  </data>
+  <data name="Settings_Cloud_AutoPullDescription" xml:space="preserve">
+    <value>本机没有改动时自动用云端的更新覆盖</value>
+  </data>
+  <data name="Settings_Cloud_Storage" xml:space="preserve">
+    <value>云存储</value>
+  </data>
+  <data name="Settings_Cloud_StorageDescription" xml:space="preserve">
+    <value>云端空间与本平台的占用</value>
+  </data>
+  <data name="Settings_Cloud_CloudUsage" xml:space="preserve">
+    <value>云端空间</value>
+  </data>
+  <data name="Settings_Cloud_CloudUsageDescription" xml:space="preserve">
+    <value>整个账号在云端用了多少</value>
+  </data>
+  <data name="Settings_Cloud_PlatformUsage" xml:space="preserve">
+    <value>本平台占用</value>
+  </data>
+  <data name="Settings_Cloud_PlatformUsageDescription" xml:space="preserve">
+    <value>思拓创联给 Corkboard 的配额里已经用了多少</value>
+  </data>
+  <data name="Settings_Cloud_Backup" xml:space="preserve">
+    <value>备份与恢复</value>
+  </data>
+  <data name="Settings_Cloud_BackupDescription" xml:space="preserve">
+    <value>手动把本机数据传上去，或者用云端备份覆盖本机</value>
+  </data>
+  <data name="Settings_Cloud_BackupNow" xml:space="preserve">
+    <value>立即备份</value>
+  </data>
+  <data name="Settings_Cloud_Restore" xml:space="preserve">
+    <value>从云端恢复</value>
+  </data>
+  <data name="Settings_Cloud_Refresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="Settings_Cloud_LastSynced" xml:space="preserve">
+    <value>上次同步 {0}</value>
+  </data>
+  <data name="Settings_Cloud_NeverSynced" xml:space="preserve">
+    <value>还没同步过</value>
+  </data>
+  <data name="Settings_Cloud_RemoteNewer" xml:space="preserve">
+    <value>云端有更新的备份，点「从云端恢复」就能拿下来</value>
+  </data>
+  <data name="Settings_Cloud_RestoreConfirmTitle" xml:space="preserve">
+    <value>从云端恢复</value>
+  </data>
+  <data name="Settings_Cloud_RestoreConfirmMessage" xml:space="preserve">
+    <value>云端的备份会覆盖本机对应的数据，还没同步上去的改动会丢失</value>
+  </data>
+  <data name="Settings_Cloud_Error" xml:space="preserve">
+    <value>操作失败</value>
+  </data>
+  <data name="Settings_Cloud_ErrorDescription" xml:space="preserve">
+    <value>云同步没成功，请稍后重试</value>
+  </data>
+  <data name="Settings_Cloud_UsageUsed" xml:space="preserve">
+    <value>已用 {0}，共 {1}</value>
+  </data>
+  <data name="Settings_Cloud_UsageAvailable" xml:space="preserve">
+    <value>剩余 {0}</value>
   </data>
 </root>
