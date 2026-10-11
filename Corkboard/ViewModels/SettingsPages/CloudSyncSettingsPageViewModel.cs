@@ -72,6 +72,11 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(ShowRemoteNewer))]
     private bool _remoteIsNewer;
 
+    /// <summary>云端有本机传上去的备份文件（连中断留下的孤儿分片算），「清空云端」按这个使能。</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanClearCloud))]
+    private bool _hasCloudFiles;
+
     /// <summary>查到用量了才显示「云端空间」那一行。</summary>
     [ObservableProperty] private bool _hasUsage;
 
@@ -100,6 +105,9 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
 
     /// <summary>云端确实有备份才让点恢复。</summary>
     public bool CanRestore => HasCloudBackup && !IsBusy;
+
+    /// <summary>云端确实有东西可清才让点清空（没东西可删的按钮点不动，别让用户白确认一次）。</summary>
+    public bool CanClearCloud => HasCloudFiles && !IsBusy;
 
     /// <summary>云端有更新的备份时才提示用户去恢复。</summary>
     public bool ShowRemoteNewer => RemoteIsNewer && HasCloudBackup;
@@ -136,6 +144,16 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
     private async Task RefreshAsync()
     {
         await RunAsync(() => _cloud.RefreshAsync());
+    }
+
+    /// <summary>
+    ///     把云端的备份全删掉，本机数据不动。
+    /// </summary>
+    /// <remarks>调用方（页面）负责先弹确认框：删了就没了，云端不会留副本。</remarks>
+    [RelayCommand]
+    private async Task ClearCloudAsync()
+    {
+        await RunAsync(() => _cloud.ClearCloudAsync());
     }
 
     /// <summary>
@@ -196,6 +214,7 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
         UsagePercent = Math.Clamp(usage.Percentage, 0, 100);
 
         HasCloudBackup = _cloud.HasCloudBackup;
+        HasCloudFiles = _cloud.HasCloudFiles;
         RemoteIsNewer = _cloud.RemoteIsNewer;
         LastSyncedText = Config.Cloud.LastSyncedAt is { } synced
             ? string.Format(CR.Settings_Cloud_LastSynced, synced.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))

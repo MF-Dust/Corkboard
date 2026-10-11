@@ -116,6 +116,10 @@
                             <Button Content="{x:Static core:Resources.Settings_Cloud_Refresh}"
                                     Command="{Binding RefreshCommand}"
                                     IsEnabled="{Binding CanSync}" />
+                            <!-- 会删掉云端全部备份，先弹确认框（见 code-behind 的 ClearCloud_OnClick）。 -->
+                            <Button Content="{x:Static core:Resources.Settings_Cloud_ClearCloud}"
+                                    Click="ClearCloud_OnClick"
+                                    IsEnabled="{Binding CanClearCloud}" />
                         </StackPanel>
 
                         <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"

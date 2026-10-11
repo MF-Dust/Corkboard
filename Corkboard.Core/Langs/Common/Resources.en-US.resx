@@ -709,6 +709,15 @@
   <data name="Settings_Cloud_Refresh" xml:space="preserve">
     <value>Refresh</value>
   </data>
+  <data name="Settings_Cloud_ClearCloud" xml:space="preserve">
+    <value>Clear cloud</value>
+  </data>
+  <data name="Settings_Cloud_ClearCloudConfirmTitle" xml:space="preserve">
+    <value>Clear cloud backups?</value>
+  </data>
+  <data name="Settings_Cloud_ClearCloudConfirmMessage" xml:space="preserve">
+    <value>Every cloud backup is deleted, data on this device is untouched</value>
+  </data>
   <data name="Settings_Cloud_LastSynced" xml:space="preserve">
     <value>Last synced {0}</value>
   </data>

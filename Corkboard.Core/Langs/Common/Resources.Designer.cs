@@ -248,6 +248,9 @@ public static class Resources
     public static string Settings_Cloud_BackupNow => ResourceManager.GetString(nameof(Settings_Cloud_BackupNow), Culture)!;
     public static string Settings_Cloud_Restore => ResourceManager.GetString(nameof(Settings_Cloud_Restore), Culture)!;
     public static string Settings_Cloud_Refresh => ResourceManager.GetString(nameof(Settings_Cloud_Refresh), Culture)!;
+    public static string Settings_Cloud_ClearCloud => ResourceManager.GetString(nameof(Settings_Cloud_ClearCloud), Culture)!;
+    public static string Settings_Cloud_ClearCloudConfirmTitle => ResourceManager.GetString(nameof(Settings_Cloud_ClearCloudConfirmTitle), Culture)!;
+    public static string Settings_Cloud_ClearCloudConfirmMessage => ResourceManager.GetString(nameof(Settings_Cloud_ClearCloudConfirmMessage), Culture)!;
     public static string Settings_Cloud_LastSynced => ResourceManager.GetString(nameof(Settings_Cloud_LastSynced), Culture)!;
     public static string Settings_Cloud_NeverSynced => ResourceManager.GetString(nameof(Settings_Cloud_NeverSynced), Culture)!;
     public static string Settings_Cloud_RemoteNewer => ResourceManager.GetString(nameof(Settings_Cloud_RemoteNewer), Culture)!;

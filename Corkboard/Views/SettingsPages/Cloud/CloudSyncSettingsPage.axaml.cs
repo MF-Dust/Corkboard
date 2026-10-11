@@ -61,4 +61,27 @@ public partial class CloudSyncSettingsPage : UserControl
         if (_viewModel.SettingsRestored)
             SettingsView.Current?.RequestRestartApp();
     }
+
+    /// <summary>
+    ///     清空云端：云端的备份会被全删、删了拿不回来，先弹一句确认。
+    /// </summary>
+    private async void ClearCloud_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (TopLevel.GetTopLevel(this) is not { } topLevel) return;
+
+        var dialog = new FAContentDialog
+        {
+            Title = CR.Settings_Cloud_ClearCloudConfirmTitle,
+            Content = CR.Settings_Cloud_ClearCloudConfirmMessage,
+            PrimaryButtonText = CR.Settings_Cloud_ClearCloud,
+            CloseButtonText = CR.Common_Cancel,
+            DefaultButton = FAContentDialogButton.Close
+        };
+
+        // 主窗口可能设了不透明度，对话框期间要让位给 1，否则框自己也是半透明的。
+        using var modalOpacity = ModalOpacityScope.Begin(this);
+        if (await dialog.ShowAsync(topLevel) != FAContentDialogResult.Primary) return;
+
+        await _viewModel.ClearCloudCommand.ExecuteAsync(null);
+    }
 }

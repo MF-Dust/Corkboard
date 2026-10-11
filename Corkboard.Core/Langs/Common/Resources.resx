@@ -714,6 +714,15 @@
   <data name="Settings_Cloud_Refresh" xml:space="preserve">
     <value>刷新</value>
   </data>
+  <data name="Settings_Cloud_ClearCloud" xml:space="preserve">
+    <value>清空云端</value>
+  </data>
+  <data name="Settings_Cloud_ClearCloudConfirmTitle" xml:space="preserve">
+    <value>清空云端的备份？</value>
+  </data>
+  <data name="Settings_Cloud_ClearCloudConfirmMessage" xml:space="preserve">
+    <value>云端的备份会全部删掉，本机数据不受影响</value>
+  </data>
   <data name="Settings_Cloud_LastSynced" xml:space="preserve">
     <value>上次同步 {0}</value>
   </data>
