@@ -515,10 +515,13 @@ dotnet run --project Corkboard.Desktop\Corkboard.Desktop.csproj
   `Corkboard.Core.Tests\bin\Release\net10.0\Corkboard.Core.Tests.exe -culture en-US`
   （xUnit v3 的 runner 自带 `-culture` 开关，可用 `default` / `invariant` / `en-US`）。
 - **发布走 `.github/workflows/Publish.yml`**（只有 `workflow_dispatch`，要手填一个**已存在**的发布标签）：
-  校验标签形态 → 全量 checkout 该标签 → `dotnet publish` 自包含 win-x64 → 打包成
-  `Corkboard-<tag>-win-x64-portable.zip` → 上传产物 → 建**草稿** Release（发布说明带大小与 SHA256）。
-  两个坑：①job 级环境变量叫 `RELEASE_TAG` 而不是 `VERSION`——MSBuild 会把环境变量当成同名属性读进去，
+  校验标签形态 → 全量 checkout 该标签 → 矩阵 `win-x64` / `win-x86` / `win-arm64`（`fail-fast: false`）各自
+  `dotnet publish` 自包含 → Pack 步骤先清掉第三方包带进来的 `.pdb` 再打成
+  `Corkboard-<tag>-<rid>-portable.zip` → 上传产物 → 建**草稿** Release（发布说明带架构对照表与每个文件的 SHA256）。
+  三个坑：①job 级环境变量叫 `RELEASE_TAG` 而不是 `VERSION`——MSBuild 会把环境变量当成同名属性读进去，
   `VERSION=v0.2.0` 会让 `dotnet restore` 直接报「"v0.2.0" 不是有效的版本字符串」；②`actions/checkout`
-  必须 `fetch-depth: 0`，因为版本号是构建期由 git 提供的（`GitInfo.props` 跑 `git describe`，浅克隆可能没有 tag）。
+  必须 `fetch-depth: 0`，因为版本号是构建期由 git 提供的（`GitInfo.props` 跑 `git describe`，浅克隆可能没有 tag）；
+  ③**标签要打在你真正要发布的那次提交上**：仓库里的 `v0.1.0` 指向骨架首版，那份 `NuGet.config` 里有开发机
+  专属的 `fallbackPackageFolders`，拿它派发必然 `NU1301: The local source 'D:\code\SecRandom-C\.nuget\packages' doesn't exist`。
 - SECTL 平台标识（`GlobalConstants.PlatformId`，用于版本上报）与 OAuth 客户端 ID
   （`Corkboard/Services/Auth/SectlAuthEndpoints.cs`）是两个不同的值，不要混用。
