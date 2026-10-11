@@ -7,12 +7,19 @@ using Corkboard.Core.Models.Board;
 using Corkboard.Core.Services.Board;
 using Corkboard.Shared.Abstraction;
 using Microsoft.Extensions.Logging.Abstractions;
+using CR = Corkboard.Core.Langs.Common.Resources;
 
 namespace Corkboard.Core.Tests;
 
 /// <summary>
 ///     作业板领域服务：作业走增删改方法、按创建日期分文件落盘，类型与科目是「直接改集合 + Save」的用法。
 ///     这里用内存配置服务替换磁盘实现，验证每次变更都会落盘一次。
+///     <para>
+///         种子科目（<see cref="BoardConfig.Subjects" />）是从本地化资源里取的，界面语言一变名字就变，
+///         而 <see cref="BoardService.SetSubjectOrder" /> 会把「不在科目清单里」的条目清掉。
+///         所以凡是拿种子科目当预期值的地方都写成 <c>CR.Board_Seed_Subject_*</c>，绝不写死中文：
+///         CI 跑在 en-US 的机器上，写死「数学」只会被当成已删除的科目而被过滤干净。
+///     </para>
 /// </summary>
 public class BoardServiceTests
 {
@@ -198,15 +205,15 @@ public class BoardServiceTests
         var (service, config, _) = CreateService();
         var savesBefore = config.SaveCount;
 
-        service.SetSubjectOrder(["数学", "语文", "已经删掉的科目"]);
+        service.SetSubjectOrder([CR.Board_Seed_Subject_Math, CR.Board_Seed_Subject_Chinese, "已经删掉的科目"]);
 
         // 记顺序就是一次落盘（和增删作业一样，每次都写）。
         Assert.Equal(savesBefore + 1, config.SaveCount);
         // 科目清单里没有的条目直接清掉，不留脏数据。
-        Assert.Equal(["数学", "语文"], service.SubjectOrder);
+        Assert.Equal([CR.Board_Seed_Subject_Math, CR.Board_Seed_Subject_Chinese], service.SubjectOrder);
 
         var stored = (BoardConfig)config.Saved[new BoardConfig().ConfigFilePath];
-        Assert.Equal(["数学", "语文"], stored.SubjectOrder);
+        Assert.Equal([CR.Board_Seed_Subject_Math, CR.Board_Seed_Subject_Chinese], stored.SubjectOrder);
     }
 
     [Fact]
@@ -214,10 +221,13 @@ public class BoardServiceTests
     {
         var (service, _, _) = CreateService();
 
-        service.SetSubjectOrder([" 数学 ", "数学", "语文", "  ", "语文"]);
+        service.SetSubjectOrder(
+        [
+            $" {CR.Board_Seed_Subject_Math} ", CR.Board_Seed_Subject_Math, CR.Board_Seed_Subject_Chinese, "  ", CR.Board_Seed_Subject_Chinese
+        ]);
 
         // 「未分类」（空科目）也是板子上真实存在的区块，要能记住位置；重复项只留第一次。
-        Assert.Equal(["数学", "语文", ""], service.SubjectOrder);
+        Assert.Equal([CR.Board_Seed_Subject_Math, CR.Board_Seed_Subject_Chinese, ""], service.SubjectOrder);
     }
 
     [Fact]
@@ -225,20 +235,20 @@ public class BoardServiceTests
     {
         var (service, _, _) = CreateService();
 
-        service.SetSubjectOrder(["", "数学"]);
+        service.SetSubjectOrder(["", CR.Board_Seed_Subject_Math]);
 
-        Assert.Equal(["", "数学"], service.SubjectOrder);
+        Assert.Equal(["", CR.Board_Seed_Subject_Math], service.SubjectOrder);
     }
 
     [Fact]
     public void SubjectOrder_RoundTripsThroughReload()
     {
         var (service, config, store) = CreateService();
-        service.SetSubjectOrder(["语文", "数学"]);
+        service.SetSubjectOrder([CR.Board_Seed_Subject_Chinese, CR.Board_Seed_Subject_Math]);
 
         var reloaded = new BoardService(config, store, NullLogger<BoardService>.Instance);
 
-        Assert.Equal(["语文", "数学"], reloaded.SubjectOrder);
+        Assert.Equal([CR.Board_Seed_Subject_Chinese, CR.Board_Seed_Subject_Math], reloaded.SubjectOrder);
     }
 
     [Fact]
