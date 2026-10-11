@@ -33,6 +33,22 @@ public interface ICloudSyncService
     /// <summary>云端有 Corkboard 自己传上去的备份文件（含中断的上传留下的孤儿分片）。</summary>
     bool HasCloudFiles { get; }
 
+    /// <summary>
+    ///     云端那份备份在别处（另一台设备、另一个客户端）被清空了，本机的同步簿记也跟着清了。
+    ///     界面要提示用户本机数据没事、但得重新备份一份。
+    /// </summary>
+    bool RemoteCleared { get; }
+
+    /// <summary>
+    ///     本机上次同步成功的时间；从没同步过是 <see langword="null" />。
+    /// </summary>
+    /// <remarks>
+    ///     界面**不要**改读自己那份配置对象：从云端恢复设置会把配置对象整个换掉
+    ///     （见 <c>ConfigHandlerBase.Reload</c>），页面持有的旧引用还停在恢复前的时间上，
+    ///     于是「云端备份已经没了」和「上次同步 12:15」会同时出现。这里每次读的都是当前那份。
+    /// </remarks>
+    DateTimeOffset? LastSyncedAt { get; }
+
     /// <summary>云端备份的最近更新时间。</summary>
     DateTimeOffset? RemoteUpdatedAt { get; }
 

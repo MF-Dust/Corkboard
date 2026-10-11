@@ -31,6 +31,38 @@ public static class CloudSyncPolicy
         return localModifiedAt is null || localModifiedAt.Value <= lastSyncedAt.Value + Tolerance;
     }
 
+    /// <summary>
+    ///     要不要把云端的作业**并**到本机来（并集）：云端有备份，而本机自己也有没同步过的改动。
+    ///     <para>
+    ///         两边都动过的时候，谁覆盖谁都会丢东西：拉云端会冲掉用户刚写的作业，推本机又会冲掉
+    ///         另一台设备刚布置的作业。所以这种时候取并集——本机的作业一条不动，云端多出来的补进来、
+    ///         同一条取更新的那份。融合完再把结果传回去，两边就一样了。
+    ///     </para>
+    /// </summary>
+    public static bool ShouldMerge(DateTimeOffset? remoteUpdatedAt, DateTimeOffset? lastSyncedAt,
+        DateTimeOffset? localModifiedAt)
+    {
+        if (remoteUpdatedAt is null || localModifiedAt is null)
+            return false;
+
+        // 从没同步过（新设备、或者云端刚被别的设备清空过）：两边都有数据就直接融合。
+        if (lastSyncedAt is null)
+            return true;
+
+        return remoteUpdatedAt.Value > lastSyncedAt.Value + Tolerance
+               && localModifiedAt.Value > lastSyncedAt.Value + Tolerance;
+    }
+
+    /// <summary>
+    ///     「只同步最近 N 天」的窗口起点；<paramref name="days" /> 为 0 或负数表示不限（返回 <c>null</c>）。
+    /// </summary>
+    /// <remarks>
+    ///     按作业的创建时间算，是个滚动窗口：今天往前数 N×24 小时。
+    ///     窗口只管作业的内容；科目表与手动排序在 <c>board.json</c> 里，永远跟着备份走。
+    /// </remarks>
+    public static DateTimeOffset? UploadCutoff(int days, DateTimeOffset now)
+        => days <= 0 ? null : now.AddDays(-days);
+
     /// <summary>本机需不需要上传：本地数据比上次同步新（或者从来没同步过但本机有数据）。</summary>
     public static bool NeedsUpload(DateTimeOffset? localModifiedAt, DateTimeOffset? lastSyncedAt)
     {
@@ -39,6 +71,16 @@ public static class CloudSyncPolicy
 
         return lastSyncedAt is null || localModifiedAt.Value > lastSyncedAt.Value + Tolerance;
     }
+
+    /// <summary>
+    ///     云端那份备份是不是在别处被清掉了：本机记着自己同步成功过，云端却一份备份都没有了。
+    /// </summary>
+    /// <remarks>
+    ///     命中的时候本机要跟着把簿记清掉：否则界面还挂着一个早就不存在的「上次同步」时间，
+    ///     而且本机会以为自己不用再传——用户改完作业也不会自动备份，等真要用的时候才发现云端是空的。
+    /// </remarks>
+    public static bool WasClearedRemotely(DateTimeOffset? lastSyncedAt, bool hasCloudBackup)
+        => lastSyncedAt is not null && !hasCloudBackup;
 
     /// <summary>
     ///     防抖自动上传的截止时间：已经排着一个更早的截止时间就保持不动，只把后来的提前。

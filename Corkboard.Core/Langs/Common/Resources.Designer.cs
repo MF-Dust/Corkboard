@@ -237,6 +237,10 @@ public static class Resources
     public static string Settings_Cloud_SettingsDescription => ResourceManager.GetString(nameof(Settings_Cloud_SettingsDescription), Culture)!;
     public static string Settings_Cloud_AutoPull => ResourceManager.GetString(nameof(Settings_Cloud_AutoPull), Culture)!;
     public static string Settings_Cloud_AutoPullDescription => ResourceManager.GetString(nameof(Settings_Cloud_AutoPullDescription), Culture)!;
+    public static string Settings_Cloud_SyncDays => ResourceManager.GetString(nameof(Settings_Cloud_SyncDays), Culture)!;
+    public static string Settings_Cloud_SyncDaysDescription => ResourceManager.GetString(nameof(Settings_Cloud_SyncDaysDescription), Culture)!;
+    public static string Settings_Cloud_SyncDays_All => ResourceManager.GetString(nameof(Settings_Cloud_SyncDays_All), Culture)!;
+    public static string Settings_Cloud_SyncDays_Days => ResourceManager.GetString(nameof(Settings_Cloud_SyncDays_Days), Culture)!;
     public static string Settings_Cloud_Storage => ResourceManager.GetString(nameof(Settings_Cloud_Storage), Culture)!;
     public static string Settings_Cloud_StorageDescription => ResourceManager.GetString(nameof(Settings_Cloud_StorageDescription), Culture)!;
     public static string Settings_Cloud_CloudUsage => ResourceManager.GetString(nameof(Settings_Cloud_CloudUsage), Culture)!;
@@ -254,6 +258,7 @@ public static class Resources
     public static string Settings_Cloud_LastSynced => ResourceManager.GetString(nameof(Settings_Cloud_LastSynced), Culture)!;
     public static string Settings_Cloud_NeverSynced => ResourceManager.GetString(nameof(Settings_Cloud_NeverSynced), Culture)!;
     public static string Settings_Cloud_RemoteNewer => ResourceManager.GetString(nameof(Settings_Cloud_RemoteNewer), Culture)!;
+    public static string Settings_Cloud_RemoteCleared => ResourceManager.GetString(nameof(Settings_Cloud_RemoteCleared), Culture)!;
     public static string Settings_Cloud_RestoreConfirmTitle => ResourceManager.GetString(nameof(Settings_Cloud_RestoreConfirmTitle), Culture)!;
     public static string Settings_Cloud_RestoreConfirmMessage => ResourceManager.GetString(nameof(Settings_Cloud_RestoreConfirmMessage), Culture)!;
     public static string Settings_Cloud_Error => ResourceManager.GetString(nameof(Settings_Cloud_Error), Culture)!;

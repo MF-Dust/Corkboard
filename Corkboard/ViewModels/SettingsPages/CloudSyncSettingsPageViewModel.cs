@@ -42,6 +42,7 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
         _auth = auth;
         _logger = logger;
 
+        SyncWindowOptions = BuildSyncWindowOptions();
         Apply();
         _cloud.StateChanged += OnCloudStateChanged;
         _auth.StateChanged += OnAuthStateChanged;
@@ -49,6 +50,46 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
 
     /// <summary>云同步这一块的配置（开关、同步内容、上次同步时间），界面直接改它、改完自动落盘。</summary>
     public CloudSyncSettingsConfig Cloud => Config.Cloud;
+
+    /// <summary>「只同步最近多久的作业」的下拉项：<c>0</c> 表示全部传。</summary>
+    public IReadOnlyList<SyncWindowOption> SyncWindowOptions { get; }
+
+    /// <summary>
+    ///     预设四档（全部/30 天/7 天/1 天）。配置里若是别的值（比如手工改过配置文件），也把它按天数插进去，
+    ///     免得下拉显示的和服务实际用的不是一回事。
+    /// </summary>
+    private IReadOnlyList<SyncWindowOption> BuildSyncWindowOptions()
+    {
+        List<SyncWindowOption> options =
+        [
+            new(0, CR.Settings_Cloud_SyncDays_All),
+            new(30, string.Format(CR.Settings_Cloud_SyncDays_Days, 30)),
+            new(7, string.Format(CR.Settings_Cloud_SyncDays_Days, 7)),
+            new(1, string.Format(CR.Settings_Cloud_SyncDays_Days, 1))
+        ];
+        if (Cloud.SyncDays > 0 && options.TrueForAll(option => option.Days != Cloud.SyncDays))
+        {
+            var extra = new SyncWindowOption(Cloud.SyncDays,
+                string.Format(CR.Settings_Cloud_SyncDays_Days, Cloud.SyncDays));
+            var index = options.FindIndex(option => option.Days < Cloud.SyncDays);
+            if (index < 0) options.Add(extra);
+            else options.Insert(index, extra);
+        }
+
+        return options;
+    }
+
+    /// <summary>下拉选中项：写回配置里的天数，配置换了对象（云端恢复过设置）也照样重取。</summary>
+    public SyncWindowOption SelectedSyncWindow
+    {
+        get => SyncWindowOptions.FirstOrDefault(option => option.Days == Cloud.SyncDays)
+               ?? SyncWindowOptions[0];
+        set
+        {
+            if (value is not null)
+                Cloud.SyncDays = value.Days;
+        }
+    }
 
     /// <summary>本机是否已登录思拓创联账号。</summary>
     [ObservableProperty]
@@ -76,6 +117,9 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanClearCloud))]
     private bool _hasCloudFiles;
+
+    /// <summary>云端那份备份在别处被清掉了，提示用户重新备份（本机数据没事）。</summary>
+    [ObservableProperty] private bool _remoteCleared;
 
     /// <summary>查到用量了才显示「云端空间」那一行。</summary>
     [ObservableProperty] private bool _hasUsage;
@@ -216,7 +260,8 @@ public sealed partial class CloudSyncSettingsPageViewModel : ViewModelBase
         HasCloudBackup = _cloud.HasCloudBackup;
         HasCloudFiles = _cloud.HasCloudFiles;
         RemoteIsNewer = _cloud.RemoteIsNewer;
-        LastSyncedText = Config.Cloud.LastSyncedAt is { } synced
+        RemoteCleared = _cloud.RemoteCleared;
+        LastSyncedText = _cloud.LastSyncedAt is { } synced
             ? string.Format(CR.Settings_Cloud_LastSynced, synced.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))
             : CR.Settings_Cloud_NeverSynced;
     }

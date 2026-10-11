@@ -24,6 +24,15 @@ public partial class CloudSyncSettingsConfig : ObservableObject
     /// <summary>本机没有未同步的改动时，自动拉取云端的更新。</summary>
     [ObservableProperty] private bool _autoPull = true;
 
+    /// <summary>
+    ///     只把最近这么多天的作业传上云端（按作业的创建时间算，窗口是滚动的）。
+    ///     <para>
+    ///         默认 <c>0</c>：全部传，历史作业一份不落。设成 7 就只传最近一周，
+    ///         窗口外那些老作业留在本机：不传上去，也不会被云端那份覆盖。
+    ///     </para>
+    /// </summary>
+    [ObservableProperty] private int _syncDays;
+
     /// <summary>本机上一次成功同步的时间。</summary>
     [ObservableProperty] private DateTimeOffset? _lastSyncedAt;
 

@@ -7,22 +7,28 @@ using Corkboard.Core.Abstraction;
 using Corkboard.Core.Abstraction.Services;
 using Corkboard.Core.Models;
 using Corkboard.Core.Models.SubConfigs.Cloud;
+using Corkboard.Core.Services.Board;
 using Corkboard.Core.Services.Cloud;
 using Corkboard.Core.Services.Config;
 using Corkboard.Services.Auth;
 using Corkboard.Shared;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Corkboard.Services.Cloud;
 
 /// <summary>
-///     云同步：把作业板与设置作为文件备份到思拓创联云存储，并在本机没有改动时自动拉取。
+///     云同步：把作业板与设置作为文件备份到思拓创联云存储，云端有新东西时自动拿下来或者并进来。
 /// </summary>
 /// <remarks>
 ///     <para>
-///         为什么不做双向合并：作业板是一份自由文本 + 富文本，两边同时改就必然分叉，自动合并只会把
-///         两边的笔记搅在一起。所以这里的规矩是**只备份、敢于自动恢复的前提是本机没动过**——
-///         本机有未同步改动时绝不自动拉取，只在界面上提示「云端有更新的备份」，由用户自己决定。
+///         本机没动过就整体拉取；两边都动过就**并集融合**（<c>BoardNoteMerge</c>）：作业按 Id 合到一起、
+///         同一条取更新的那份，合完把结果传回云端让两边收敛。绝不整体覆盖用户刚写的作业——作业是
+///         自由文本 + 富文本，逐字段拼出来的是谁也不认识的一条，所以只按整条取新。
+///     </para>
+///     <para>
+///         作业的并集**不认识手动删除**：本机删掉的作业如果云端那份还在会被带回来（数据里没有删除墓碑）。
+///         冲突时把作业找回来比悄悄丢一条安全，先按这个来。
 ///     </para>
 ///     <para>
 ///         防自激：同步成功后要写 <see cref="CloudSyncSettingsConfig.LastSyncedAt" />，而配置一写就触发
@@ -45,6 +51,15 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     /// <summary>设置改动后等这么久再上传：设置常常一连串地改（拖滑杆、连点开关），攒久一点再传。</summary>
     private static readonly TimeSpan SettingsAutoUploadDelay = TimeSpan.FromSeconds(45);
 
+    /// <summary>
+    ///     隔多久问一次云端有没有变化。
+    ///     <para>
+    ///         别的设备传了新备份、或者把云端清空了，本机必须在几十秒内自己知道，
+    ///     而不是等用户打开设置页点「刷新」。一分钟一次、一次两个请求，代价可以接受。
+    ///     </para>
+    /// </summary>
+    private static readonly TimeSpan RemotePollInterval = TimeSpan.FromSeconds(60);
+
     private const string ProductName = "Corkboard";
     private const string BoardDirectoryName = "board";
     private const string WorkDirectoryName = "cloud-sync";
@@ -63,6 +78,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     private DateTimeOffset? _remoteUpdatedAt;
     private bool _remoteIsNewer;
     private bool _hasCloudFiles;
+    private bool _remoteCleared;
     private bool _isBusy;
     private string? _lastError;
 
@@ -73,8 +89,33 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     ///     按更早的那个算：否则先排的 5 秒会被后到的 45 秒顶掉，作业要等 45 秒才传上去。
     /// </summary>
     private DateTimeOffset? _autoUploadDeadline;
+
+    /// <summary>问云端有没有变化的定时器（<see cref="RemotePollInterval" /> 一次）。</summary>
+    private DispatcherTimer? _remotePoll;
+
     private bool _synchronizing;
-    private bool _autoPullChecked;
+
+    /// <summary>
+    ///     上一次自动拉取是冲着哪个云端版本去的。
+    ///     <para>
+    ///         后台轮询会一遍遍地走到自动拉取这一步，同一个版本只试一次：拉成功了不用再拉，
+    ///     拉失败（比如分片缺了）也不该每分钟重试一遍。云端的版本号变了才会再试。
+    ///     </para>
+    /// </summary>
+    private DateTimeOffset? _autoPulledRemote;
+
+    /// <summary>
+    ///     上一次融合是冲着哪个云端版本去的：和自动拉取同一个道理，同一个版本只融合一次，
+    ///     融合失败（比如分片缺了）也不每分钟重试一遍。
+    /// </summary>
+    private DateTimeOffset? _mergedRemoteBoard;
+
+    /// <summary>上一次看见的云同步开关状态，用来认出「刚把开关打开」这个动作。</summary>
+    private bool _lastEnabledSeen;
+
+    /// <summary>上一次看见的登录状态，用来认出「刚登录」这个动作（令牌刷新不算）。</summary>
+    private bool _signedInSeen;
+
     private bool _initialized;
     private bool _disposed;
 
@@ -156,6 +197,24 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         }
     }
 
+    /// <summary>云端那份备份在别处被清空了（本机簿记也跟着清了），界面据此提示用户重新备份。</summary>
+    public bool RemoteCleared
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _remoteCleared;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     本机上次同步成功的时间。**每次都从配置句柄现读**，不能用页面构造时拿到的那份配置对象：
+    ///     从云端恢复设置会把配置对象整个换掉，旧引用还停在恢复前的时间上。
+    /// </summary>
+    public DateTimeOffset? LastSyncedAt => _configHandler.Data.Cloud.LastSyncedAt;
+
     public DateTimeOffset? RemoteUpdatedAt
     {
         get
@@ -207,15 +266,20 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _initialized = true;
+        _lastEnabledSeen = Config.Enabled;
+        _signedInSeen = _auth.IsSignedIn;
         if (!_auth.IsSignedIn)
             return;
 
+        // 别的设备传了新备份、或者把云端清空了，本机不靠用户点「刷新」也能自己知道。
+        StartRemotePoll();
+
         // 用量和云备份清单都是账号维度的，开关没开也该显示出来（设置页要看剩余空间），
         // 「本机没有改动时自动拉取」才是开关管的事，所以 autoPull 只在开启云同步时才带。
-        await SafeCheckAsync(Config.Enabled, cancellationToken);
+        await SafeCheckAsync(Config.Enabled, false, cancellationToken);
     }
 
-    public Task RefreshAsync(CancellationToken cancellationToken = default) => CheckAsync(false, false, cancellationToken);
+    public Task RefreshAsync(CancellationToken cancellationToken = default) => CheckAsync(false, false, false, cancellationToken);
 
     public async Task BackupAsync(CloudSyncScope scope, CancellationToken cancellationToken = default)
     {
@@ -227,7 +291,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         try
         {
             await BackupCoreAsync(scope, cancellationToken);
-            await CheckAsync(false, true, cancellationToken);
+            await CheckAsync(false, true, false, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -250,7 +314,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         try
         {
             await RestoreCoreAsync(scope, cancellationToken);
-            await CheckAsync(false, true, cancellationToken);
+            await CheckAsync(false, true, false, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -309,7 +373,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
 
             // 用量与文件清单要重查一遍（云端已经空了，界面上的占用不能还停在删之前）。
             // 这一步失败不该盖掉「已经删完了」这个事实，所以只记日志。
-            await SafeCheckAsync(false, cancellationToken);
+            await SafeCheckAsync(false, false, cancellationToken);
 
             _logger?.LogInformation("已清空云端备份（{Count} 个文件，{Failed} 个没删掉）。", targets.Count, failed);
 
@@ -338,6 +402,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         _board.Changed -= OnBoardChanged;
         _auth.StateChanged -= OnAuthStateChanged;
         StopAutoUpload();
+        StopRemotePoll();
     }
 
     private void EnsureSignedIn()
@@ -347,9 +412,15 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     }
 
     /// <summary>查一遍云端（用量 + 备份文件）；失败时抛出，由调用方决定怎么显示。</summary>
-    private async Task CheckAsync(bool autoPull, bool assumeSynced, CancellationToken cancellationToken)
+    /// <param name="background">
+    ///     后台轮询发起的查询：不占界面的忙闲状态，失败也只记日志。
+    ///     每分钟一次的动作要是会闪一下「正在同步」、或者留一条红字，比不同步还烦人。
+    /// </param>
+    private async Task CheckAsync(bool autoPull, bool assumeSynced, bool background, CancellationToken cancellationToken)
     {
-        SetBusy(true);
+        if (!background)
+            SetBusy(true);
+
         try
         {
             var usage = await _client.GetUsageAsync(false, cancellationToken);
@@ -363,26 +434,34 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
 
             NotifyState();
 
+            // 别处把云端清空了：本机跟着清簿记并提示用户重新备份。
+            DetectRemoteCleared();
+
             if (autoPull)
                 await AutoPullAsync(cancellationToken);
         }
         catch (Exception exception)
         {
-            RecordError(exception);
+            if (background)
+                _logger?.LogDebug(exception, "后台查询云存储状态失败。");
+            else
+                RecordError(exception);
+
             throw;
         }
         finally
         {
-            SetBusy(false);
+            if (!background)
+                SetBusy(false);
         }
     }
 
-    /// <summary>启动期与事件里的查询：失败只记日志，绝不把异常抛到没人接的地方。</summary>
-    private async Task SafeCheckAsync(bool autoPull, CancellationToken cancellationToken)
+    /// <summary>启动期、事件与后台轮询里的查询：失败只记日志，绝不把异常抛到没人接的地方。</summary>
+    private async Task SafeCheckAsync(bool autoPull, bool background, CancellationToken cancellationToken)
     {
         try
         {
-            await CheckAsync(autoPull, false, cancellationToken);
+            await CheckAsync(autoPull, false, background, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -418,14 +497,9 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         => remote is { } value &&
            (Config.LastSyncedAt is not { } last || value > last + CloudSyncPolicy.Tolerance);
 
-    /// <summary>本机没有未同步改动时自动拉取；只要有可能冲掉用户的数据就不动。</summary>
+    /// <summary>本机没有未同步改动时自动拉取；两边都动过时改成并集融合，绝不整体覆盖本机。</summary>
     private async Task AutoPullAsync(CancellationToken cancellationToken)
     {
-        if (_autoPullChecked)
-            return;
-
-        _autoPullChecked = true;
-
         var config = Config;
         if (!config.Enabled || !config.AutoPull || !_auth.IsSignedIn)
             return;
@@ -436,11 +510,132 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
 
         var (boardDirty, settingsDirty) = ComputeDirty(scope);
         var dirty = boardDirty || settingsDirty;
-        if (!CloudSyncPolicy.ShouldAutoPull(remote, config.LastSyncedAt, dirty ? DateTimeOffset.Now : null))
+        var now = DateTimeOffset.Now;
+
+        if (CloudSyncPolicy.ShouldAutoPull(remote, config.LastSyncedAt, dirty ? now : null))
+        {
+            lock (_gate)
+            {
+                // 同一个云端版本只自动拉一次：轮询会不停地走到这里，拉过了就别再拉。
+                if (_autoPulledRemote == remote)
+                    return;
+
+                _autoPulledRemote = remote;
+            }
+
+            _logger?.LogInformation("本机没有未同步的改动，正在从云端恢复备份。");
+            await RestoreCoreAsync(scope, cancellationToken);
+            return;
+        }
+
+        // 两边都改过：谁覆盖谁都会丢东西，改成并集融合。
+        if (!boardDirty || !scope.HasFlag(CloudSyncScope.Board))
             return;
 
-        _logger?.LogInformation("本机没有未同步的改动，正在从云端恢复备份。");
-        await RestoreCoreAsync(scope, cancellationToken);
+        if (RemoteUpdatedAtFor(CloudSyncScope.Board) is not { } remoteBoard)
+            return;
+
+        if (!CloudSyncPolicy.ShouldMerge(remoteBoard, config.LastSyncedAt, now))
+            return;
+
+        lock (_gate)
+        {
+            if (_mergedRemoteBoard == remoteBoard)
+                return;
+
+            _mergedRemoteBoard = remoteBoard;
+        }
+
+        await MergeBoardAsync(cancellationToken);
+    }
+
+    /// <summary>
+    ///     云端与本机都有改动时的收尾：把云端的作业并到本机（并集），再把合并结果传回云端。
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         本机已有的作业一条不动：只补云端多出来的、以及同一条里云端更新的那份——冲突时宁可多留一条，
+    ///     也不能把用户本机的内容冲掉。设置不参与这次融合：作业是共同的内容，设置多半是本机各自的偏好。
+    ///     </para>
+    ///     <para>
+    ///         合完必须传回去：云端那份还只有一半，传上去两边才真正一样；这次上传顺带刷新「上次同步」，
+    ///     否则下一轮轮询还会撞上同一个云端版本。
+    ///     </para>
+    /// </remarks>
+    private async Task MergeBoardAsync(CancellationToken cancellationToken)
+    {
+        var files = await _client.ListFilesAsync(cancellationToken).ConfigureAwait(false);
+        var boardBackup = CloudBackupFiles.ReadBoardBackup(files);
+        if (!boardBackup.HasAny)
+            return;
+
+        var work = CreateWorkDirectory();
+        try
+        {
+            var archivePath = Path.Combine(work, CloudBackupFiles.BoardArchiveName);
+            try
+            {
+                if (boardBackup.Manifest is not null)
+                {
+                    await DownloadPackageAsync(boardBackup, archivePath, work, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    await DownloadLegacyBoardAsync(boardBackup, archivePath, work, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                var staging = Path.Combine(work, "cloud-board");
+                if (CloudBackupArchive.Extract(archivePath, staging) == 0)
+                {
+                    _logger?.LogInformation("云端的作业板备份里没有作业，这次不融合。");
+                }
+                else
+                {
+                    var remoteNotes = new BoardNoteStore(NullLogger<BoardNoteStore>.Instance, staging).LoadAll();
+                    var localNotes = _board.Notes.ToList();
+                    var merged = BoardNoteMerge.Merge(localNotes, remoteNotes);
+
+                    _logger?.LogInformation(
+                        "云端和本机都有改动，已按并集融合：本机 {Local} 条 + 云端 {Remote} 条 → 共 {Total} 条" +
+                        "（云端补进来 {Added} 条、更新 {Updated} 条、合并重复 {Removed} 条）。",
+                        localNotes.Count, remoteNotes.Count, merged.Notes.Count, merged.AddedFromRemote,
+                        merged.UpdatedFromRemote, merged.RemovedDuplicates);
+
+                    if (merged.TookAnythingFromRemote)
+                    {
+                        // 挡掉自己这次 Reload 触发的 Changed：下面的上传就在眼前，不用再排一次。
+                        _synchronizing = true;
+                        try
+                        {
+                            // 就地写回本机的日期文件，**不能**整体换目录：那样会连 board.json
+                            // （科目表与手动排序）一起抹掉，而它不在并集的管辖范围里。
+                            new BoardNoteStore(NullLogger<BoardNoteStore>.Instance, BoardDirectory)
+                                .SaveAll(merged.Notes);
+
+                            CopyBoardFiles(staging, BoardDirectory, overwrite: false);
+                            _board.Reload();
+                        }
+                        finally
+                        {
+                            _synchronizing = false;
+                        }
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is InvalidDataException or FormatException or IOException)
+            {
+                _logger?.LogWarning(exception, "云端作业板备份读不出来，这次不融合。");
+                throw new CloudStorageException("invalid_backup", "云端的作业板备份读不出来，可能已经损坏");
+            }
+
+            await BackupCoreAsync(CloudSyncScope.Board, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            DeleteDirectory(work);
+        }
     }
 
     private DateTimeOffset? RemoteUpdatedAtFor(CloudSyncScope scope)
@@ -550,7 +745,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         var archivePath = Path.Combine(work, CloudBackupFiles.BoardArchiveName);
         var archiveManifest = new CloudBackupManifest(ProductName, GlobalConstants.Version, GlobalConstants.PlatformId,
             DateTimeOffset.Now);
-        CloudBackupArchive.Create(BoardDirectory, archivePath, archiveManifest);
+        CloudBackupArchive.Create(PrepareBoardUploadDirectory(work), archivePath, archiveManifest);
 
         var payload = await File.ReadAllBytesAsync(archivePath, cancellationToken).ConfigureAwait(false);
         if (payload.LongLength > CloudBackupPackage.MaxArchiveBytes)
@@ -580,6 +775,37 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         _logger?.LogInformation("已上传作业板云备份 {BackupId}（{Bytes} 字节，{Parts} 片）。",
             manifest.BackupId, payload.LongLength, parts.Count);
     }
+
+    /// <summary>
+    ///     这次要打包装上去的作业板目录。
+    /// </summary>
+    /// <remarks>
+    ///     没设窗口（<c>cloud.sync_days</c> 是 <c>0</c>）就直接用本机目录，一份文件都不用复制；
+    ///     设了窗口就只把窗口内的作业写进临时目录：窗口外的历史作业留在本机。
+    ///     科目表与手动排序在 <c>board.json</c> 里，不分窗口，永远跟着备份走。
+    /// </remarks>
+    private string PrepareBoardUploadDirectory(string work)
+    {
+        if (UploadCutoff() is not { } cutoff)
+            return BoardDirectory;
+
+        var directory = Path.Combine(work, "upload-board");
+        var notes = new BoardNoteStore(NullLogger<BoardNoteStore>.Instance, BoardDirectory)
+            .LoadAll()
+            .Where(note => note.CreatedAt >= cutoff)
+            .ToList();
+
+        new BoardNoteStore(NullLogger<BoardNoteStore>.Instance, directory).SaveAll(notes);
+        CopyBoardFiles(BoardDirectory, directory, overwrite: false);
+
+        _logger?.LogInformation("只同步最近 {Days} 天的作业：这次传 {Count} 条，窗口外的都留在本机。",
+            Config.SyncDays, notes.Count);
+
+        return directory;
+    }
+
+    /// <summary>「只同步最近 N 天」的窗口起点；不限时返回 <c>null</c>。</summary>
+    private DateTimeOffset? UploadCutoff() => CloudSyncPolicy.UploadCutoff(Config.SyncDays, DateTimeOffset.Now);
 
     /// <summary>按顺序传分片、最后传清单；任何一步出错就把这次已经传上去的全删掉。</summary>
     private async Task UploadPackageAsync(CloudBackupPackageManifest manifest, IReadOnlyList<byte[]> parts,
@@ -718,7 +944,11 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
                     if (count == 0 && DirectoryHasFiles(BoardDirectory))
                         throw new CloudStorageException("invalid_backup", "这份云备份里没有作业板数据，已停止恢复");
 
-                    ReplaceDirectory(staging, BoardDirectory);
+                    if (UploadCutoff() is { } cutoff)
+                        RestoreBoardWithinWindow(staging, cutoff);
+                    else
+                        ReplaceDirectory(staging, BoardDirectory);
+
                     _board.Reload();
                 }
                 catch (Exception exception) when (exception is InvalidDataException or FormatException or IOException)
@@ -763,6 +993,27 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
 
         CommitSyncState(settingsRestored);
         _logger?.LogInformation("已从云端恢复备份（{Scope}）。", scope);
+    }
+
+    /// <summary>
+    ///     设了「只同步最近 N 天」时的作业板恢复：只让云端那份覆盖窗口内的部分，窗口外的本机历史作业原样留着。
+    /// </summary>
+    /// <remarks>
+    ///     云端那份本来就只带窗口内的作业；要是照样整体换目录，本机窗口外那些老作业（云端压根没有）
+    ///     就会被一起删掉。所以这里按并集写回：窗口外的本机作业 + 云端带下来的作业，再让板级文件
+    ///     （<c>board.json</c>）以云端为准——用户点的是「用云端备份覆盖本机」。
+    /// </remarks>
+    private static void RestoreBoardWithinWindow(string staging, DateTimeOffset cutoff)
+    {
+        var local = new BoardNoteStore(NullLogger<BoardNoteStore>.Instance, BoardDirectory)
+            .LoadAll()
+            .Where(note => note.CreatedAt < cutoff)
+            .ToList();
+        var remote = new BoardNoteStore(NullLogger<BoardNoteStore>.Instance, staging).LoadAll();
+        var merged = BoardNoteMerge.Merge(local, remote);
+
+        new BoardNoteStore(NullLogger<BoardNoteStore>.Instance, BoardDirectory).SaveAll(merged.Notes);
+        CopyBoardFiles(staging, BoardDirectory, overwrite: true);
     }
 
     /// <summary>
@@ -842,6 +1093,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         lock (_gate)
         {
             _remoteIsNewer = false;
+            _remoteCleared = false;
             _lastError = null;
         }
 
@@ -851,11 +1103,15 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
     /// <summary>
     ///     清空云端之后的簿记：本机不再有任何「已同步」状态，云端那份清单也一起作废。
     /// </summary>
+    /// <param name="remoteCleared">
+    ///     这次清空到底是不是「别处干的」。用户自己点「清空云端」时是 false——他刚做的事不用再提示一遍；
+    ///     发现云端在别处被清空时是 true，界面要提示本机数据没事、但得重新备份。
+    /// </param>
     /// <remarks>
     ///     写配置同样要挡掉 <see cref="ConfigHandlerBase{T}.Saved" />：这两笔是清空动作的收尾，
     ///     不是用户改了设置，不能顺手拉起一次自动上传。
     /// </remarks>
-    private void ResetSyncBookkeeping()
+    private void ResetSyncBookkeeping(bool remoteCleared = false)
     {
         _synchronizing = true;
         try
@@ -875,10 +1131,27 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             _remoteSettings = null;
             _remoteUpdatedAt = null;
             _remoteIsNewer = false;
+            _remoteCleared = remoteCleared;
             _lastError = null;
         }
 
         NotifyState();
+    }
+
+    /// <summary>
+    ///     本机记着「同步过」，云端却一份备份都没有了：那是别处（另一台设备、另一个客户端）把云端清空了。
+    /// </summary>
+    /// <remarks>
+    ///     本机跟着把簿记清掉，并让界面提示用户重新备份一份。不这么做的话界面还挂着一个早就不存在的
+    ///     「上次同步」时间，本机也会以为自己不用再传，用户改完作业根本不会自动备份。
+    /// </remarks>
+    private void DetectRemoteCleared()
+    {
+        if (!CloudSyncPolicy.WasClearedRemotely(Config.LastSyncedAt, HasCloudBackup))
+            return;
+
+        _logger?.LogInformation("云端已经没有备份了（可能是别的设备清空的），本机同步簿记跟着清掉。");
+        ResetSyncBookkeeping(remoteCleared: true);
     }
 
     /// <summary>
@@ -912,17 +1185,24 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         if (_disposed || _synchronizing)
             return;
 
-        if (!Config.Enabled)
+        var enabled = Config.Enabled;
+        var justEnabled = enabled && !_lastEnabledSeen;
+        _lastEnabledSeen = enabled;
+
+        if (!enabled)
         {
             StopAutoUpload();
+            StopRemotePoll();
             return;
         }
 
         ScheduleAutoUpload(SettingsAutoUploadDelay);
+        StartRemotePoll();
 
-        // 刚打开同步开关：先看一眼云端有没有更新，本机没改动就自动拿下来。
-        if (_initialized && !_autoPullChecked && _auth.IsSignedIn)
-            _ = SafeCheckAsync(true, CancellationToken.None);
+        // 刚打开同步开关：立刻看一眼云端有没有更新（不等下一轮 60 秒轮询），本机没改动就自动拿下来。
+        // 只在「刚打开」这个动作上查，不是每次存配置都查：拖窗口这类本机专属设置也会写配置。
+        if (justEnabled && _initialized && _auth.IsSignedIn)
+            _ = SafeCheckAsync(true, false, CancellationToken.None);
     }
 
     private void OnBoardChanged(object? sender, EventArgs e)
@@ -939,19 +1219,38 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         if (_disposed || !_initialized)
             return;
 
-        if (!_auth.IsSignedIn)
+        var signedIn = _auth.IsSignedIn;
+        if (signedIn == _signedInSeen)
+            return;
+
+        _signedInSeen = signedIn;
+
+        if (!signedIn)
         {
-            _autoPullChecked = false;
+            lock (_gate)
+            {
+                _autoPulledRemote = null;
+                _mergedRemoteBoard = null;
+            }
+
             RunOnUiThread(() =>
             {
                 StopAutoUpload();
+                StopRemotePoll();
                 ResetCloudState();
             });
             return;
         }
 
-        if (Config.Enabled && !_autoPullChecked)
-            RunOnUiThread(() => _ = SafeCheckAsync(true, CancellationToken.None));
+        // 刚登录：立刻查一遍（不等下一轮轮询），顺手把轮询起起来。
+        RunOnUiThread(() =>
+        {
+            if (!Config.Enabled)
+                return;
+
+            StartRemotePoll();
+            _ = SafeCheckAsync(true, false, CancellationToken.None);
+        });
     }
 
     private void ScheduleAutoUpload(TimeSpan delay)
@@ -1000,6 +1299,39 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         _ = SafeAutoBackupAsync();
     }
 
+    /// <summary>
+    ///     起一条定时轮询：别的设备传了新备份就按策略自动拿下来，别处把云端清空了就跟着清簿记。
+    ///     用户不用自己去点「刷新」。
+    /// </summary>
+    private void StartRemotePoll() => RunOnUiThread(() =>
+    {
+        if (_disposed)
+            return;
+
+        _remotePoll ??= new DispatcherTimer();
+        _remotePoll.Tick -= OnRemotePollTick;
+        _remotePoll.Tick += OnRemotePollTick;
+        _remotePoll.Interval = RemotePollInterval;
+        _remotePoll.Start();
+    });
+
+    private void StopRemotePoll() => RunOnUiThread(() => _remotePoll?.Stop());
+
+    /// <summary>
+    ///     轮询到点了：只在真的在用云同步（已登录 + 开关开着）且不忙的时候问云端，
+    ///     走静默查询——失败只写日志，不占界面的忙闲、也不留红字。
+    /// </summary>
+    private void OnRemotePollTick(object? sender, EventArgs e)
+    {
+        if (_disposed || IsBusy)
+            return;
+
+        if (!Config.Enabled || !_auth.IsSignedIn)
+            return;
+
+        _ = SafeCheckAsync(true, true, CancellationToken.None);
+    }
+
     /// <summary>防抖到期后的自动上传：只传真正变过的那部分，失败只记日志。</summary>
     private async Task SafeAutoBackupAsync()
     {
@@ -1020,7 +1352,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
         try
         {
             await BackupCoreAsync(scope, CancellationToken.None);
-            await CheckAsync(false, true, CancellationToken.None);
+            await CheckAsync(false, true, false, CancellationToken.None);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -1043,6 +1375,7 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
             _remoteUpdatedAt = null;
             _remoteIsNewer = false;
             _hasCloudFiles = false;
+            _remoteCleared = false;
             _lastError = null;
         }
 
@@ -1177,6 +1510,38 @@ public sealed class CloudSyncService : ICloudSyncService, IDisposable
                 Directory.CreateDirectory(folder);
 
             File.Move(file, destination, true);
+        }
+    }
+
+    /// <summary>
+    ///     搬板级文件（<c>notes.json</c> 以外的东西）：科目定义 <c>board.json</c> 之类。
+    ///     <para>
+    ///         作业文件由作业并集与 <c>SaveAll</c> 负责，这里一律跳过。
+    ///         <paramref name="overwrite" /> 为 <c>false</c> 时两边都有的文件以目标为准——融合时本机的科目表
+    ///         与手动排序是用户自己调的，不该被云端覆盖；为 <c>true</c> 时以源为准——恢复时用户点的就是
+    ///         「用云端备份覆盖本机」。
+    ///     </para>
+    /// </summary>
+    private static void CopyBoardFiles(string source, string target, bool overwrite)
+    {
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, file);
+            if (string.Equals(Path.GetFileName(relative), BoardNoteStore.NotesFileName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var destination = Path.Combine(target, relative);
+            if (!overwrite && File.Exists(destination))
+                continue;
+
+            var folder = Path.GetDirectoryName(destination);
+            if (!string.IsNullOrEmpty(folder))
+                Directory.CreateDirectory(folder);
+
+            File.Copy(file, destination, overwrite);
         }
     }
 

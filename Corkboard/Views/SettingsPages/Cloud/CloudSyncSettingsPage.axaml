@@ -64,6 +64,22 @@
                         <ToggleSwitch IsChecked="{Binding Cloud.AutoPull}" />
                     </fa:FASettingsExpanderItem.Footer>
                 </fa:FASettingsExpanderItem>
+
+                <!-- 历史作业要不要跟着传：默认全部传，赶时间/省空间的人可以只传最近几天。 -->
+                <fa:FASettingsExpanderItem Content="{x:Static core:Resources.Settings_Cloud_SyncDays}"
+                                           Description="{x:Static core:Resources.Settings_Cloud_SyncDaysDescription}">
+                    <fa:FASettingsExpanderItem.Footer>
+                        <ComboBox MinWidth="160"
+                                  ItemsSource="{Binding SyncWindowOptions}"
+                                  SelectedItem="{Binding SelectedSyncWindow, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SyncWindowOption">
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </fa:FASettingsExpanderItem.Footer>
+                </fa:FASettingsExpanderItem>
             </fa:FASettingsExpander>
 
             <!-- 用量：一行看整个账号，一行看本平台（Corkboard 的配额是平台维度的）。 -->
@@ -129,6 +145,12 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Text="{x:Static core:Resources.Settings_Cloud_RemoteNewer}"
                                    IsVisible="{Binding ShowRemoteNewer}" />
+
+                        <!-- 别处把云端清空了：本机数据还在，但云端已经没备份了。 -->
+                        <TextBlock MaxWidth="420" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                   Text="{x:Static core:Resources.Settings_Cloud_RemoteCleared}"
+                                   IsVisible="{Binding RemoteCleared}" />
 
                         <TextBlock MaxWidth="420" TextWrapping="Wrap"
                                    Foreground="{DynamicResource SystemFillColorCriticalBrush}"

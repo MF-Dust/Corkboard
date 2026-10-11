@@ -681,6 +681,18 @@
   <data name="Settings_Cloud_AutoPullDescription" xml:space="preserve">
     <value>本机没有改动时自动用云端的更新覆盖</value>
   </data>
+  <data name="Settings_Cloud_SyncDays" xml:space="preserve">
+    <value>只同步最近多久的作业</value>
+  </data>
+  <data name="Settings_Cloud_SyncDaysDescription" xml:space="preserve">
+    <value>科目顺序和历史作业都跟着备份；窗口外的老作业只留本机，不传上去也不会被覆盖</value>
+  </data>
+  <data name="Settings_Cloud_SyncDays_All" xml:space="preserve">
+    <value>全部作业</value>
+  </data>
+  <data name="Settings_Cloud_SyncDays_Days" xml:space="preserve">
+    <value>最近 {0} 天</value>
+  </data>
   <data name="Settings_Cloud_Storage" xml:space="preserve">
     <value>云存储</value>
   </data>
@@ -731,6 +743,9 @@
   </data>
   <data name="Settings_Cloud_RemoteNewer" xml:space="preserve">
     <value>云端有更新的备份，点「从云端恢复」就能拿下来</value>
+  </data>
+  <data name="Settings_Cloud_RemoteCleared" xml:space="preserve">
+    <value>云端的备份已经没了，点「立即备份」重新传一份</value>
   </data>
   <data name="Settings_Cloud_RestoreConfirmTitle" xml:space="preserve">
     <value>从云端恢复</value>

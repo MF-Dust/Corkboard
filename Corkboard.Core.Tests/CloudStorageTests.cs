@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using Corkboard.Core.Models.Board;
 using Corkboard.Core.Services.Cloud;
 
 namespace Corkboard.Core.Tests;
@@ -279,6 +280,26 @@ public class CloudStorageTests
         Assert.Equal(overdue, CloudSyncPolicy.NextDeadline(overdue, now, TimeSpan.FromSeconds(5)));
     }
 
+    /// <summary>
+    ///     「云端被别处清空了」只在「本机同步成功过、云端却空了」时成立：
+    ///     从没同步过是正常的空云端，本机有备份也只是别人的云端，都不该提示。
+    /// </summary>
+    [Fact]
+    public void Policy_RemoteClearedOnlyWhenWeHadSyncedBefore()
+    {
+        var lastSync = new DateTimeOffset(2026, 4, 11, 8, 0, 0, TimeSpan.Zero);
+
+        // 本机记着同步过，云端一份都没有了：别处清空的。
+        Assert.True(CloudSyncPolicy.WasClearedRemotely(lastSync, false));
+
+        // 云端还有备份：没被清空。
+        Assert.False(CloudSyncPolicy.WasClearedRemotely(lastSync, true));
+
+        // 从没同步过：云端空着是正常的，不是「被清空」。
+        Assert.False(CloudSyncPolicy.WasClearedRemotely(null, false));
+        Assert.False(CloudSyncPolicy.WasClearedRemotely(null, true));
+    }
+
     /// <summary>备份包能原样打回来，清单不落到数据目录里。</summary>
     [Fact]
     public void Archive_RoundTripsBoardData()
@@ -333,6 +354,206 @@ public class CloudStorageTests
             Directory.Delete(root, true);
         }
     }
+
+    /// <summary>
+    ///     两边都动过才融合：本机没动（那是整体拉取）、云端没有更新（没东西可并）、
+    ///     云端连备份都没有，都不该走融合。
+    /// </summary>
+    [Fact]
+    public void Policy_MergeOnlyWhenBothSidesChanged()
+    {
+        var lastSync = new DateTimeOffset(2026, 4, 11, 8, 0, 0, TimeSpan.Zero);
+
+        // 两边都比上次同步新：融合。
+        Assert.True(CloudSyncPolicy.ShouldMerge(lastSync.AddMinutes(5), lastSync, lastSync.AddMinutes(3)));
+
+        // 从没同步过（新设备、或者云端刚被别的设备清空过）：两边都有数据就融合。
+        Assert.True(CloudSyncPolicy.ShouldMerge(lastSync, null, lastSync));
+
+        // 云端没有备份：没什么可融合的。
+        Assert.False(CloudSyncPolicy.ShouldMerge(null, lastSync, lastSync.AddMinutes(3)));
+
+        // 本机没动过：那是整体拉取的事，跟融合互斥。
+        Assert.False(CloudSyncPolicy.ShouldMerge(lastSync.AddMinutes(5), lastSync, null));
+        Assert.True(CloudSyncPolicy.ShouldAutoPull(lastSync.AddMinutes(5), lastSync, null));
+
+        // 云端那份不比上次同步新：没有新东西可以并进来。
+        Assert.False(CloudSyncPolicy.ShouldMerge(lastSync, lastSync, lastSync.AddMinutes(3)));
+
+        // 本机自己的改动已经同步过了：不算两边都动过。
+        Assert.False(CloudSyncPolicy.ShouldMerge(lastSync.AddMinutes(5), lastSync, lastSync));
+    }
+
+    /// <summary>「只同步最近 N 天」的窗口：0 或负数表示不限，正数就是从当下往前数 N 天（滚动窗口）。</summary>
+    [Fact]
+    public void Policy_UploadWindowIsRollingAndOptional()
+    {
+        var now = new DateTimeOffset(2026, 10, 11, 20, 0, 0, TimeSpan.FromHours(8));
+
+        // 不设窗口：一份都不筛。
+        Assert.Null(CloudSyncPolicy.UploadCutoff(0, now));
+        Assert.Null(CloudSyncPolicy.UploadCutoff(-3, now));
+
+        // 设了窗口：窗口边界那一刻算窗口内（作业按创建时间跟它比）。
+        var cutoff = CloudSyncPolicy.UploadCutoff(7, now);
+        Assert.NotNull(cutoff);
+        Assert.Equal(now.AddDays(-7), cutoff.Value);
+        Assert.True(now.AddDays(-7) >= cutoff.Value);
+        Assert.False(now.AddDays(-7).AddTicks(-1) >= cutoff.Value);
+    }
+
+    /// <summary>并集：本机的都在，云端多出来的补进来，两边都有的取更新的那份。</summary>
+    [Fact]
+    public void Merge_KeepsLocalAndAddsRemote()
+    {
+        var day = new DateTimeOffset(2026, 10, 11, 9, 0, 0, TimeSpan.FromHours(8));
+        var mine = Guid.NewGuid();
+        var both = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+
+        var local = new[]
+        {
+            Note(mine, day, day.AddMinutes(1), "本机新写的"),
+            Note(both, day, day.AddMinutes(2), "本机改的")
+        };
+
+        var remote = new[]
+        {
+            Note(both, day, day.AddMinutes(30), "云端改的"),
+            Note(theirs, day.AddMinutes(5), day.AddMinutes(6), "另一台设备布置的")
+        };
+
+        var merged = BoardNoteMerge.Merge(local, remote);
+
+        Assert.Equal(3, merged.Notes.Count);
+        Assert.Equal(1, merged.AddedFromRemote);
+        Assert.Equal(1, merged.UpdatedFromRemote);
+        Assert.Equal(0, merged.KeptLocal);
+        Assert.True(merged.TookAnythingFromRemote);
+
+        // 同一条取更新的那份：两边都改过的那条按云端的新内容；本机独有的、云端独有的一条不落地丢。
+        Assert.Equal("云端改的", merged.Notes.Single(note => note.Id == both).Content);
+        Assert.Equal("本机新写的", merged.Notes.Single(note => note.Id == mine).Content);
+        Assert.Equal("另一台设备布置的", merged.Notes.Single(note => note.Id == theirs).Content);
+
+        // 按创建时间排序：另一台设备那条创建得最晚，排在最后。
+        Assert.Equal(theirs, merged.Notes[^1].Id);
+    }
+
+    /// <summary>融合只加不减：本机已有的作业一条都不会丢，云端更旧的那份不会盖掉本机。</summary>
+    [Fact]
+    public void Merge_NeverDropsLocalNotes()
+    {
+        var day = new DateTimeOffset(2026, 10, 11, 9, 0, 0, TimeSpan.FromHours(8));
+        var localOnly = Guid.NewGuid();
+        var shared = Guid.NewGuid();
+
+        var merged = BoardNoteMerge.Merge(
+            [Note(localOnly, day, day.AddMinutes(1), "本机的"), Note(shared, day, day.AddMinutes(1), "两边一样")],
+            [Note(shared, day, day, "云端旧的那份")]);
+
+        Assert.Equal(2, merged.Notes.Count);
+        Assert.False(merged.TookAnythingFromRemote);
+        Assert.Equal(0, merged.AddedFromRemote);
+        Assert.Equal(1, merged.KeptLocal);
+        Assert.Equal("两边一样", merged.Notes.Single(note => note.Id == shared).Content);
+    }
+
+    /// <summary>清理标记跟着更新的那份走：一边自动清理过、另一边还在板子上，融合后也算清理过。</summary>
+    [Fact]
+    public void Merge_TakesCleanedFlagWithTheNewerCopy()
+    {
+        var day = new DateTimeOffset(2026, 10, 11, 9, 0, 0, TimeSpan.FromHours(8));
+        var id = Guid.NewGuid();
+
+        var merged = BoardNoteMerge.Merge(
+            [Note(id, day, day.AddMinutes(1), "做完了")],
+            [Note(id, day, day.AddMinutes(20), "做完了", day.AddMinutes(20))]);
+
+        var note = Assert.Single(merged.Notes);
+        Assert.Equal(day.AddMinutes(20), note.CleanedAt);
+    }
+
+    /// <summary>
+    ///     同一侧自己带重复时并集不会把它复制出去：历史数据里同一个 Id 可能落在两个日期文件里
+    ///     （<c>BoardNoteStore.LoadAll</c> 按文件读、不按 Id 去重），这时每个 Id 只留更新的那一份。
+    /// </summary>
+    [Fact]
+    public void Merge_DeduplicatesRepeatedIdsInsideOneSide()
+    {
+        var day = new DateTimeOffset(2026, 10, 11, 9, 0, 0, TimeSpan.FromHours(8));
+        var id = Guid.NewGuid();
+
+        var fromLocal = BoardNoteMerge.Merge(
+            [Note(id, day, day.AddMinutes(1), "本机旧的那份"), Note(id, day, day.AddMinutes(30), "本机新的那份")],
+            []);
+
+        Assert.Equal("本机新的那份", Assert.Single(fromLocal.Notes).Content);
+        Assert.False(fromLocal.TookAnythingFromRemote);
+
+        var fromRemote = BoardNoteMerge.Merge(
+            [],
+            [Note(id, day, day.AddMinutes(1), "云端旧的那份"), Note(id, day, day.AddMinutes(20), "云端新的那份")]);
+
+        Assert.Equal("云端新的那份", Assert.Single(fromRemote.Notes).Content);
+    }
+
+    /// <summary>
+    ///     两边各建过一次同一份作业（Id 不同、科目与内容与截止日期都一样）时，融合后只留一条，
+    ///     留下的那份取更新的——不然板子上会出现两张一模一样的卡片。
+    /// </summary>
+    [Fact]
+    public void Merge_CollapsesSameNoteCreatedOnBothSides()
+    {
+        var day = new DateTimeOffset(2026, 10, 11, 9, 0, 0, TimeSpan.FromHours(8));
+        var due = new DateOnly(2026, 10, 12);
+
+        var merged = BoardNoteMerge.Merge(
+            [Note(Guid.NewGuid(), day, day.AddMinutes(1), "<p>P12–15</p>", subject: "数学", dueDate: due)],
+            [Note(Guid.NewGuid(), day, day.AddMinutes(40), "<p>P12–15</p>", subject: "数学", dueDate: due)]);
+
+        var note = Assert.Single(merged.Notes);
+        Assert.Equal(day.AddMinutes(40), note.UpdatedAt);
+        Assert.Equal(1, merged.RemovedDuplicates);
+    }
+
+    /// <summary>看着像、其实不是同一条的要留着：科目不同、截止日期不同、创建日期不同都算两条。</summary>
+    [Fact]
+    public void Merge_KeepsNotesThatAreOnlySimilar()
+    {
+        var day = new DateTimeOffset(2026, 10, 11, 9, 0, 0, TimeSpan.FromHours(8));
+        var due = new DateOnly(2026, 10, 12);
+
+        var otherSubject = BoardNoteMerge.Merge(
+            [Note(Guid.NewGuid(), day, day, "<p>P12–15</p>", subject: "数学", dueDate: due)],
+            [Note(Guid.NewGuid(), day, day, "<p>P12–15</p>", subject: "物理", dueDate: due)]);
+
+        var otherDueDate = BoardNoteMerge.Merge(
+            [Note(Guid.NewGuid(), day, day, "<p>P12–15</p>", subject: "数学", dueDate: due)],
+            [Note(Guid.NewGuid(), day, day, "<p>P12–15</p>", subject: "数学", dueDate: due.AddDays(1))]);
+
+        var otherDay = BoardNoteMerge.Merge(
+            [Note(Guid.NewGuid(), day, day, "<p>P12–15</p>", subject: "数学", dueDate: due)],
+            [Note(Guid.NewGuid(), day.AddDays(1), day.AddDays(1), "<p>P12–15</p>", subject: "数学", dueDate: due)]);
+
+        Assert.Equal(2, otherSubject.Notes.Count);
+        Assert.Equal(2, otherDueDate.Notes.Count);
+        Assert.Equal(2, otherDay.Notes.Count);
+        Assert.Equal(0, otherSubject.RemovedDuplicates + otherDueDate.RemovedDuplicates + otherDay.RemovedDuplicates);
+    }
+
+    private static BoardNote Note(Guid id, DateTimeOffset created, DateTimeOffset updated, string content,
+        DateTimeOffset? cleanedAt = null, string subject = "", DateOnly? dueDate = null)
+        => new()
+        {
+            Id = id,
+            Content = content,
+            Subject = subject,
+            DueDate = dueDate,
+            CreatedAt = created,
+            UpdatedAt = updated,
+            CleanedAt = cleanedAt
+        };
 
     private static string CreateTempDirectory()
     {
