@@ -1,0 +1,183 @@
+# Windows 发布流程：手动派发一个发布标签 → 构建自包含的 Windows 便携包 → 上传产物 → 建一个草稿 Release。
+#
+# 照上游 SecRandom-C 的 .github/workflows/build_publish.yml 抄了「派发标签 → 构建 → 打包 → 草稿 Release」
+# 这条主干，只保留 Windows。刻意**没有**抄过来的部分（Corkboard 暂时用不到）：
+#   · iOS / Android / macOS / Linux 的矩阵行与各自的签名步骤；
+#   · 单独的 Launcher 工程（Corkboard 没有启动器，直接发 Corkboard.Desktop.exe）；
+#   · Inno Setup 安装包（Setup.iss）；
+#   · metadata.yaml / validate-release-metadata.ps1（那是更新频道的元数据，Corkboard 还没有更新客户端）；
+#   · 更新清单（SecRandom-update-manifest.json）与 Ed25519 签名（没人验证签名，签了也没意义）；
+#   · Windows 代码签名（要 WINDOWS_CODESIGN_* 机密，仓库里还没有）。
+# 触发方式只有 workflow_dispatch：**发布标签必须已经存在**（checkout 会按这个 ref 取代码，
+# 构建期的 GitInfo.props 也靠它把 tag 写进版本号），所以先打 tag 再派发，不要在推分支时自动发布。
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 发布标签（例如 v0.2.0）
+        required: true
+        type: string
+
+jobs:
+  build_windows:
+    name: Build Windows (${{ matrix.arch }})
+    # 与 SecRandom-C 一致用 windows-2022 而不是 windows-latest：发布要的是可复现的镜像，不是最新的。
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x64 ]
+
+    env:
+      # 环境变量必须是 RELEASE_TAG 而不是 VERSION：MSBuild 会把环境变量当成同名属性读进去，
+      # 一旦叫 VERSION，`dotnet restore` 拿到的就是 Version=v0.2.0（带 v，不是合法版本号）→
+      # 「"v0.2.0" 不是有效的版本字符串」直接失败。带 v 的标签只留在脚本变量里，
+      # 传给 MSBuild 的版本一律去掉前缀（-p:Version=0.2.0）。
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      RID: win-${{ matrix.arch }}
+      PLATFORM: Windows
+
+    steps:
+      - name: Validate release tag
+        shell: pwsh
+        # 放在 checkout 之前：标签形态不对就直接停，别等到 checkout 一个不存在的 ref 才报错。
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+            throw "发布标签要写成 vX.Y.Z 或 vX.Y.Z-后缀，现在是 '$env:RELEASE_TAG'"
+          }
+          Write-Host "发布标签：$env:RELEASE_TAG"
+
+      - uses: actions/checkout@v7
+        with:
+          # 版本号来自 git（GitInfo.props 跑 git describe），浅克隆可能连 tag 都取不到，必须全量。
+          fetch-depth: 0
+          ref: ${{ inputs.release_tag }}
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore Corkboard.Desktop\Corkboard.Desktop.csproj -r $env:RID -p:CorkboardPlatform=$env:PLATFORM
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          # 与上游同一套参数：不裁剪、带 apphost、不带调试符号。自包含发布，用户机器上不需要 .NET 运行时。
+          # -p:Version 是给头程序集之外的类库用的（头程序集走 GitInfo 从 tag 拿版本）。
+          $version = $env:RELEASE_TAG.TrimStart('v', 'V')
+          $arguments = @(
+            'publish', 'Corkboard.Desktop\Corkboard.Desktop.csproj',
+            '-c', 'Release',
+            '-r', $env:RID,
+            "-p:CorkboardPlatform=$env:PLATFORM",
+            '-p:PublishTrimmed=false',
+            '-p:UseAppHost=true',
+            '-p:DebugType=None',
+            '-p:DebugSymbols=false',
+            '-p:BuildInParallel=false',
+            '-p:UseSharedCompilation=false',
+            "-p:Version=$version",
+            '--no-restore',
+            '--self-contained',
+            '-o', "artifacts\release\publish\$env:RID"
+          )
+          & dotnet @arguments
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败（exit $LASTEXITCODE）" }
+
+      - name: Pack portable zip
+        shell: pwsh
+        run: |
+          $publishRoot = "artifacts\release\publish\$env:RID"
+          if (-not (Test-Path (Join-Path $publishRoot 'Corkboard.Desktop.exe'))) {
+            throw "发布目录里没有 Corkboard.Desktop.exe：$publishRoot"
+          }
+
+          # 包内容标记：解压后一眼能看出这是哪个平台、哪种发布形态，照上游的 SecRandom.package.json。
+          @{
+            schemaVersion = 1
+            product       = 'Corkboard'
+            rid           = $env:RID
+            packageKind   = 'portable-zip'
+            runtimeKind   = 'self-contained'
+          } | ConvertTo-Json -Compress | Set-Content -Encoding utf8NoBOM (Join-Path $publishRoot 'Corkboard.package.json')
+
+          $dist = 'artifacts\release\dist'
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          $zip = Join-Path $dist "Corkboard-$env:RELEASE_TAG-$env:RID-portable.zip"
+          # 只压目录里的内容，压缩包解开就是能直接跑的那一份（不套一层同名文件夹）。
+          Compress-Archive -Path (Join-Path $publishRoot '*') -DestinationPath $zip -Force
+
+          if (-not (Test-Path $zip) -or (Get-Item $zip).Length -le 0) { throw "压缩包没打出来：$zip" }
+          Write-Host ("已打包 {0}（{1:N1} MB）" -f (Split-Path $zip -Leaf), ((Get-Item $zip).Length / 1MB))
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.arch }}_portable
+          path: artifacts/release/dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish Release
+    needs: build_windows
+    runs-on: windows-2022
+    permissions:
+      # 建 Release 要写权限；工作流默认只有读权限（不写这条会 403）。
+      contents: write
+    concurrency:
+      # 发布串行执行：两个标签同时发不会互相盖 Release。
+      group: publish-public
+
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts/release/downloaded
+
+      - name: Collect artifacts and write release note
+        shell: pwsh
+        run: |
+          $output = 'artifacts\release\output'
+          New-Item -ItemType Directory -Force -Path $output | Out-Null
+          Get-ChildItem 'artifacts\release\downloaded' -Recurse -File -Filter *.zip |
+            ForEach-Object { Copy-Item $_.FullName -Destination $output -Force }
+
+          $files = Get-ChildItem $output -File | Sort-Object Name
+          if ($files.Count -eq 0) { throw '没有可发布的文件：构建 job 一个 zip 都没上传' }
+
+          # 发布说明：Corkboard 还没有 CHANGELOG 目录，先由产物自己生成（大小 + SHA256 便于核对下载）。
+          $note = [System.Collections.Generic.List[string]]::new()
+          $note.Add("## Corkboard $env:RELEASE_TAG")
+          $note.Add('')
+          $note.Add('Windows 便携版：解压后直接运行 `Corkboard.Desktop.exe`，自带 .NET 运行时，无需另行安装。')
+          $note.Add('')
+          $note.Add('| 文件 | 大小 | SHA256 |')
+          $note.Add('| --- | --- | --- |')
+          foreach ($file in $files) {
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $note.Add(("| {0} | {1:N1} MB | ``{2}`` |" -f $file.Name, ($file.Length / 1MB), $hash))
+          }
+          $note | Set-Content -Encoding utf8NoBOM release-note.md
+          Get-Content release-note.md
+
+      - uses: ncipollo/release-action@v1
+        with:
+          name: Corkboard ${{ inputs.release_tag }}
+          tag: ${{ inputs.release_tag }}
+          artifacts: "./artifacts/release/output/*.zip"
+          bodyFile: ./release-note.md
+          # 草稿：产物先传上去，人工看一眼再点发布。带 - 的标签自动标成预发布。
+          draft: true
+          prerelease: ${{ contains(inputs.release_tag, '-') }}
+          # 同一个标签再派发一次时更新已有草稿，而不是报错。
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
